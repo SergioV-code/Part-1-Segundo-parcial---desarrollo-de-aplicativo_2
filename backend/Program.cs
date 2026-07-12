@@ -96,8 +96,11 @@ builder.Services.AddCors(options =>
         }
         else
         {
-            // En producción, restringimos estrictamente a tu URL de Railway
-            policy.WithOrigins("https://resilient-transformation-production.up.railway.app")
+            // En producción, permitimos solo los frontends desplegados autorizados
+            policy.WithOrigins(
+                    "https://resilient-transformation-production.up.railway.app",
+                    "https://part-1-segundo-parcial---desarrollo-de-aplicativo-2.pages.dev"
+                  )
                   .AllowAnyMethod()
                   .AllowAnyHeader();
         }
