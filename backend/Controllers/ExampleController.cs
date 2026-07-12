@@ -14,6 +14,31 @@ namespace EDUMETRICS_DR.Controllers
     [Route("api")]
     public class ExampleController : ControllerBase
     {
+        private static readonly string[] CentrosEducativos =
+        {
+            "Liceo Unión Panamericana",
+            "Politécnico Loyola",
+            "Colegio Santa Teresita"
+        };
+
+        private static readonly string[] ModalidadesAcademicas =
+        {
+            "Modalidad Académica",
+            "Modalidad Técnico Profesional"
+        };
+
+        private static readonly string[] Nombres =
+        {
+            "Ana", "Luis", "María", "Carlos", "Sofía", "José", "Camila", "Miguel", "Valentina", "Andrés",
+            "Paola", "Diego", "Gabriela", "Raúl", "Daniela", "Francisco", "Isabella", "Javier", "Renata", "Pedro"
+        };
+
+        private static readonly string[] Apellidos =
+        {
+            "García", "Rodríguez", "Pérez", "Hernández", "López", "Martínez", "Sánchez", "Ramírez", "Torres", "Díaz",
+            "Castillo", "Fernández", "Mejía", "Núñez", "Vargas", "Almonte", "Reyes", "Méndez", "Santana", "Peralta"
+        };
+
         private readonly IMongoCollection<Student> _studentCollection;
         private readonly IMongoCollection<Estudiante> _dbCollection;
         private readonly IMongoCollection<AuditLog> _auditLogCollection;
@@ -41,6 +66,46 @@ namespace EDUMETRICS_DR.Controllers
                 Fecha = DateTime.UtcNow,
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             });
+        }
+
+        private static string GenerarCedula(Random random)
+        {
+            return $"{random.Next(0, 1000):000}-{random.Next(0, 10000000):0000000}-{random.Next(0, 10)}";
+        }
+
+        private static List<Student> GenerarEstudiantesSeed(int cantidad)
+        {
+            var random = new Random();
+            var estudiantes = new List<Student>(cantidad);
+
+            for (var i = 0; i < cantidad; i++)
+            {
+                var nombre = Nombres[random.Next(Nombres.Length)];
+                var apellido1 = Apellidos[random.Next(Apellidos.Length)];
+                var apellido2 = Apellidos[random.Next(Apellidos.Length)];
+                var centro = CentrosEducativos[random.Next(CentrosEducativos.Length)];
+                var modalidad = ModalidadesAcademicas[random.Next(ModalidadesAcademicas.Length)];
+
+                estudiantes.Add(new Student
+                {
+                    Id = ObjectId.GenerateNewId().ToString(),
+                    Nombre = $"{nombre} {apellido1} {apellido2}",
+                    Cedula = GenerarCedula(random),
+                    Rne = $"RNE-SEED-{DateTime.UtcNow:yyyyMMdd}-{(i + 1):000}",
+                    CentroEducativo = centro,
+                    ModalidadAcademica = modalidad,
+                    DistritoEducativo = $"{random.Next(1, 19):00}-{random.Next(1, 6):00}",
+                    Estado = "Regular",
+                    TasaAsistencia = Math.Round(random.NextDouble() * 20 + 80, 2),
+                    PromedioGeneral = Math.Round(random.NextDouble() * 25 + 70, 2),
+                    EstadoBecaMescyt = "No Aplica",
+                    ProtocoloArquitectura = "Sincronización pendiente",
+                    FechaCreacion = DateTime.UtcNow,
+                    FechaActualizacion = DateTime.UtcNow
+                });
+            }
+
+            return estudiantes;
         }
 
         /// <summary>
@@ -313,6 +378,56 @@ namespace EDUMETRICS_DR.Controllers
             {
                 _logger.LogError($"[API] Error al actualizar estudiante (PATCH): {ex.Message}");
                 return StatusCode(500, new { error = "Error al actualizar el estudiante" });
+            }
+        }
+
+        /// <summary>
+        /// POST /api/SeedExampleData
+        /// Inserta 20 estudiantes ficticios si la colección está vacía
+        /// </summary>
+        /// <returns>Resumen de inserción</returns>
+        [HttpPost("SeedExampleData")]
+        public async Task<IActionResult> SeedExampleData()
+        {
+            try
+            {
+                var userRole = Request.Headers["X-User-Role"].ToString();
+                if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
+                {
+                    return StatusCode(403, new { error = "Acceso denegado para este rol" });
+                }
+
+                var totalActual = await _studentCollection.CountDocumentsAsync(Builders<Student>.Filter.Empty);
+                if (totalActual > 0)
+                {
+                    return Ok(new
+                    {
+                        message = "Seed omitido: la colección de estudiantes ya contiene datos.",
+                        totalActual
+                    });
+                }
+
+                var estudiantesSeed = GenerarEstudiantesSeed(20);
+                await _studentCollection.InsertManyAsync(estudiantesSeed);
+
+                await RegistrarAuditoriaAsync(
+                    "SEED",
+                    "Estudiante",
+                    "Inserción de 20 estudiantes ficticios para pruebas",
+                    userRole
+                );
+
+                _logger.LogInformation("[API] POST /api/SeedExampleData - Seed insertado con 20 estudiantes");
+                return Ok(new
+                {
+                    message = "Seed completado correctamente.",
+                    inserted = estudiantesSeed.Count
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[API] Error al ejecutar seed de estudiantes: {ex.Message}");
+                return StatusCode(500, new { error = "Error al ejecutar el seed de estudiantes" });
             }
         }
     }

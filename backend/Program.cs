@@ -107,6 +107,20 @@ builder.Services.AddLogging(options =>
 
 var app = builder.Build();
 
+// ── Ejecutar seed automático al arrancar ──────────────────────────────────────
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        scope.ServiceProvider.GetRequiredService<StudentService>();
+    }
+    catch (Exception ex)
+    {
+        var startupLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        startupLogger.LogWarning("Seed omitido: {Message}", ex.Message);
+    }
+}
+
 // ==================== MIDDLEWARE ====================
 if (app.Environment.IsDevelopment())
 {
