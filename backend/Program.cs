@@ -1,8 +1,13 @@
 using MongoDB.Driver;
 using EDUMETRICS_DR.Models;
 using EDUMETRICS_DR.Data;
+using EDUMETRICS_DR.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ==================== MongoDbSettings DI ====================
+builder.Services.Configure<MongoDbSettings>(
+    builder.Configuration.GetSection("MongoDbSettings"));
 
 // ==================== MONGODB CONFIGURATION ====================
 var configuredConnectionString = builder.Configuration["MongoDB:ConnectionString"];
@@ -67,6 +72,7 @@ builder.Services.AddSingleton<IMongoCollection<AuditLog>>(sp =>
 });
 
 // ==================== SERVICES ====================
+builder.Services.AddSingleton<StudentService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -85,26 +91,11 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // ==================== CORS CONFIGURATION ====================
+// Política global abierta — permite cualquier origen para que el frontend consuma la API sin bloqueos.
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowSpecificOrigins", policy =>
-    {
-        if (builder.Environment.IsDevelopment())
-        {
-            // En desarrollo, permitimos todo para facilitar el debugging
-            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
-        }
-        else
-        {
-            // En producción, permitimos solo los frontends desplegados autorizados
-            policy.WithOrigins(
-                    "https://resilient-transformation-production.up.railway.app",
-                    "https://part-1-segundo-parcial---desarrollo-de-aplicativo-2.pages.dev"
-                  )
-                  .AllowAnyMethod()
-                  .AllowAnyHeader();
-        }
-    });
+    options.AddPolicy("AllowAll", policy =>
+        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 });
 
 // ==================== LOGGING ====================
@@ -143,7 +134,7 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseCors("AllowSpecificOrigins");
+app.UseCors("AllowAll");
 app.UseAuthorization();
 app.MapControllers();
 
