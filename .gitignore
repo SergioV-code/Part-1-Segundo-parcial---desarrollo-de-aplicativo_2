@@ -427,3 +427,55 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Build results
+bin/
+obj/
+*.csproj.user
+.vs/
+.vscode/
+
+# NuGet
+.nuget/
+packages/
+*.nupkg
+*.snupkg
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Node modules (para frontend)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build outputs
+dist/
+build/
+
+# IDE files
+.idea/
+.vscode/
+*.suo
+*.code-workspace
