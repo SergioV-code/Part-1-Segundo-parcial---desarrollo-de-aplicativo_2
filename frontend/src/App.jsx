@@ -127,15 +127,15 @@ export default function App() {
 
   const handleLogin = e => {
     e.preventDefault()
-    if (!loginForm.usuario.trim() || !loginForm.contrasena.trim()) {
-      setLoginError('Ingresa usuario y contrasena para continuar.')
+    if (!loginForm.usuario.trim() || (!loginForm.contrasena.trim() && loginForm.rol !== 'Estudiante')) {
+      setLoginError(loginForm.rol === 'Estudiante' ? 'Ingresa tu cedula para continuar.' : 'Ingresa usuario y contrasena para continuar.')
       return
     }
     setIsAuthenticated(true)
     setActiveRole(loginForm.rol)
     // Redirigir al tab inicial correcto segun rol
     setActiveTab(isGov(loginForm.rol) ? TAB_INICIO : TAB_PERFIL)
-    pushAudit('SESION_INICIO', `Usuario ${loginForm.usuario.trim()} inicio sesion como ${loginForm.rol}`)
+    pushAudit('SESION_INICIO', `${loginForm.rol === 'Estudiante' ? 'Estudiante cedula' : 'Usuario'} ${loginForm.usuario.trim()} inicio sesion como ${loginForm.rol}`)
   }
 
   const handleLogout = () => {
@@ -288,28 +288,6 @@ export default function App() {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Usuario institucional</label>
-              <input
-                type="text"
-                name="usuario"
-                value={loginForm.usuario}
-                onChange={handleLoginChange}
-                placeholder="usuario@minerd.gob.do"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Contrasena</label>
-              <input
-                type="password"
-                name="contrasena"
-                value={loginForm.contrasena}
-                onChange={handleLoginChange}
-                placeholder="••••••••"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-            <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">Rol de acceso</label>
               <select
                 name="rol"
@@ -321,13 +299,55 @@ export default function App() {
               </select>
             </div>
 
+            {loginForm.rol === 'Estudiante' ? (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Cedula de identidad</label>
+                <input
+                  type="text"
+                  name="usuario"
+                  value={loginForm.usuario}
+                  onChange={handleLoginChange}
+                  placeholder="000-0000000-0"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                />
+                <p className="mt-1 text-xs text-slate-400">Ingresa tu cedula para acceder al portal estudiantil.</p>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">Usuario institucional</label>
+                  <input
+                    type="text"
+                    name="usuario"
+                    value={loginForm.usuario}
+                    onChange={handleLoginChange}
+                    placeholder="usuario@minerd.gob.do"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">Contrasena</label>
+                  <input
+                    type="password"
+                    name="contrasena"
+                    value={loginForm.contrasena}
+                    onChange={handleLoginChange}
+                    placeholder="••••••••"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+              </>
+            )}
+
             {loginError && (
               <p className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{loginError}</p>
             )}
 
             <button
               type="submit"
-              className="w-full rounded-lg bg-blue-700 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"
+              className={`w-full rounded-lg py-2.5 text-sm font-semibold text-white ${
+                loginForm.rol === 'Estudiante' ? 'bg-violet-600 hover:bg-violet-700' : 'bg-blue-700 hover:bg-blue-800'
+              }`}
             >
               Iniciar sesion
             </button>
