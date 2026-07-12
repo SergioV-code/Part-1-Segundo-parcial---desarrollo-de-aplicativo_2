@@ -19,11 +19,23 @@ const TAB_REPORTES  = 'Reportes Empresariales'
 const TAB_AUDITORIA = 'Registro de Auditoria'
 const NAV_TABS = [TAB_INICIO, TAB_GESTION, TAB_FORMULARIO, TAB_REPORTES, TAB_AUDITORIA]
 
-const ROLES = ['Analista MINERD', 'Analista MESCYT']
+const ROLES = ['Analista MINERD', 'Analista MESCYT', 'Estudiante']
 const ROL_COLORS = {
-  'Analista MINERD':  { bg: '#1d4ed8', badge: 'bg-blue-100 text-blue-800' },
-  'Analista MESCYT':  { bg: '#0f766e', badge: 'bg-teal-100 text-teal-800' },
+  'Analista MINERD': { bg: '#1d4ed8', badge: 'bg-blue-100 text-blue-800' },
+  'Analista MESCYT': { bg: '#0f766e', badge: 'bg-teal-100 text-teal-800' },
+  'Estudiante':      { bg: '#7c3aed', badge: 'bg-violet-100 text-violet-800' },
 }
+
+// Tabs gubernamentales (Analista)
+const GOV_TABS = [TAB_INICIO, TAB_GESTION, TAB_FORMULARIO, TAB_REPORTES, TAB_AUDITORIA]
+
+// Tabs estudiantiles
+const TAB_PERFIL    = 'Mi Perfil'
+const TAB_PENSUM    = 'Mi Pensum'
+const TAB_BECAS     = 'Oportunidades y Becas'
+const STU_TABS      = [TAB_PERFIL, TAB_PENSUM, TAB_BECAS]
+
+const isGov = rol => rol === 'Analista MINERD' || rol === 'Analista MESCYT'
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function normalizeModalidad(value) {
@@ -121,6 +133,8 @@ export default function App() {
     }
     setIsAuthenticated(true)
     setActiveRole(loginForm.rol)
+    // Redirigir al tab inicial correcto segun rol
+    setActiveTab(isGov(loginForm.rol) ? TAB_INICIO : TAB_PERFIL)
     pushAudit('SESION_INICIO', `Usuario ${loginForm.usuario.trim()} inicio sesion como ${loginForm.rol}`)
   }
 
@@ -269,7 +283,7 @@ export default function App() {
           <div className="mb-6 text-center">
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-blue-700 text-white text-2xl font-bold">E</div>
             <h1 className="text-2xl font-bold text-slate-800">EDUMETRICS-DR</h1>
-            <p className="mt-1 text-sm text-slate-500">Portal Gubernamental Institucional MINERD / MESCYT</p>
+            <p className="mt-1 text-sm text-slate-500">Sistema Educativo Dominicano MINERD / MESCYT</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -320,7 +334,7 @@ export default function App() {
           </form>
 
           <p className="mt-4 text-center text-xs text-slate-400">
-            Sistema de acceso restringido. Solo personal autorizado.
+            Acceso restringido. Gobierno y estudiantes autorizados.
           </p>
         </div>
       </div>
@@ -345,7 +359,7 @@ export default function App() {
           </div>
 
           <nav className="flex flex-wrap gap-1">
-            {NAV_TABS.map(tab => (
+            {(isGov(activeRole) ? GOV_TABS : STU_TABS).map(tab => (
               <button
                 key={tab}
                 type="button"
@@ -373,8 +387,8 @@ export default function App() {
 
       <main className="mx-auto max-w-7xl space-y-5 px-4 py-6">
 
-        {/* ── FORMULARIO (visible en pestaña propia + accesible desde editar) ── */}
-        <div className={`${card} p-5`} style={{ display: activeTab === TAB_FORMULARIO ? 'block' : 'none' }}>
+        {/* ── FORMULARIO (solo gubernamental, oculto para Estudiante) ── */}
+        <div className={`${card} p-5`} style={{ display: activeTab === TAB_FORMULARIO && isGov(activeRole) ? 'block' : 'none' }}>
           <h2 className="mb-4 text-base font-semibold text-slate-800">
             {editingId ? 'Actualizar expediente seleccionado' : 'Agregar nuevo expediente'}
           </h2>
@@ -702,6 +716,171 @@ export default function App() {
                 </table>
               </div>
             )}
+          </section>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            PORTAL ESTUDIANTIL — MI PERFIL
+        ═══════════════════════════════════════════════════════════════════ */}
+        {activeTab === TAB_PERFIL && (
+          <section className={`${card} p-6 space-y-5`}>
+            <div className="flex items-center gap-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-violet-100 text-2xl font-bold text-violet-700">
+                {loginForm.usuario.trim().charAt(0).toUpperCase() || 'E'}
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">Mi Perfil Estudiantil</h2>
+                <p className="text-sm text-slate-500">Datos de solo lectura del expediente registrado en EDUMETRICS-DR</p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[
+                { label: 'Nombre completo',   value: 'Ana Sofia Jimenez',           icon: '👤' },
+                { label: 'Cedula',            value: '001-5678901-2',               icon: '🪪' },
+                { label: 'Centro educativo',  value: 'Colegio Santa Teresita',      icon: '🏫' },
+                { label: 'Modalidad',         value: MOD_ACADEMICA,                 icon: '📚' },
+                { label: 'RNE',               value: 'RNE-SEED-005',                icon: '🔖' },
+                { label: 'Estado academico',  value: 'Regular',                     icon: '✅' },
+                { label: 'Tasa de asistencia', value: '92%',                        icon: '📅' },
+                { label: 'Promedio general',   value: '85.4 / 100',                 icon: '🏆' },
+              ].map(item => (
+                <div key={item.label} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="mb-0.5 text-xs font-semibold text-slate-500">{item.icon} {item.label}</p>
+                  <p className="text-sm font-medium text-slate-800">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800">
+              <strong>Nota:</strong> Estos datos son gestionados por tu institucion educativa. Para actualizaciones, contacta al administrador MINERD/MESCYT.
+            </div>
+          </section>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            PORTAL ESTUDIANTIL — MI PENSUM
+        ═══════════════════════════════════════════════════════════════════ */}
+        {activeTab === TAB_PENSUM && (
+          <section className={`${card} p-6 space-y-6`}>
+            <h2 className="text-xl font-bold text-slate-800">Mi Pensum Academico</h2>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div>
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-600">
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> Materias Actuales (4to Grado)
+                </h3>
+                <div className="space-y-2">
+                  {[
+                    { materia: 'Matematica Avanzada',       creditos: 4, estado: 'En curso' },
+                    { materia: 'Lengua Espanola',           creditos: 3, estado: 'En curso' },
+                    { materia: 'Ciencias Naturales',        creditos: 3, estado: 'En curso' },
+                    { materia: 'Ciencias Sociales',         creditos: 2, estado: 'En curso' },
+                    { materia: 'Educacion Fisica',          creditos: 2, estado: 'En curso' },
+                    { materia: 'Tecnologia e Informatica',  creditos: 2, estado: 'En curso' },
+                  ].map((m, i) => (
+                    <div key={i} className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5">
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{m.materia}</p>
+                        <p className="text-xs text-slate-500">{m.creditos} creditos</p>
+                      </div>
+                      <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-xs font-semibold text-emerald-800">{m.estado}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-600">
+                  <span className="inline-block h-2 w-2 rounded-full bg-slate-400" /> Materias Futuras (5to y 6to Grado)
+                </h3>
+                <div className="space-y-2">
+                  {[
+                    { materia: 'Calculo Diferencial',       grado: '5to' },
+                    { materia: 'Fisica General',            grado: '5to' },
+                    { materia: 'Quimica Organica',          grado: '5to' },
+                    { materia: 'Filosofia y Etica',         grado: '6to' },
+                    { materia: 'Proyecto de Grado',         grado: '6to' },
+                    { materia: 'Pasantia Profesional',      grado: '6to' },
+                  ].map((m, i) => (
+                    <div key={i} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 opacity-70">
+                      <div>
+                        <p className="text-sm font-medium text-slate-700">{m.materia}</p>
+                        <p className="text-xs text-slate-400">Grado {m.grado}</p>
+                      </div>
+                      <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">Pendiente</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+              <strong>Progreso academico:</strong> 4 de 6 grados completados — 66% del pensum aprobado.
+              <div className="mt-2 h-3 overflow-hidden rounded-full bg-blue-200">
+                <div className="h-full rounded-full bg-blue-600" style={{ width: '66%' }} />
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            PORTAL ESTUDIANTIL — OPORTUNIDADES Y BECAS
+        ═══════════════════════════════════════════════════════════════════ */}
+        {activeTab === TAB_BECAS && (
+          <section className={`${card} p-6 space-y-5`}>
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">Oportunidades y Becas</h2>
+              <p className="mt-1 text-sm text-slate-500">Beneficios disponibles para estudiantes registrados en la plataforma EDUMETRICS-DR</p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <article className="flex flex-col rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-blue-50 p-5 shadow-sm">
+                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 text-white text-xl">🎓</div>
+                <h3 className="mb-1 text-base font-bold text-indigo-900">Beca MESCYT Educacion Superior</h3>
+                <p className="mb-3 flex-1 text-xs text-indigo-700">Financiamiento del 100% de la matricula universitaria para egresados del bachillerato en modalidad academica con promedio superior a 80.</p>
+                <div className="mb-3 space-y-1 text-xs text-indigo-800">
+                  <p>✔ Cubre matricula y libros</p>
+                  <p>✔ Estipendio mensual RD$3,000</p>
+                  <p>✔ Renovacion anual automatica</p>
+                </div>
+                <button className="w-full rounded-lg bg-indigo-600 py-2 text-xs font-semibold text-white hover:bg-indigo-700">
+                  Aplicar ahora
+                </button>
+              </article>
+
+              <article className="flex flex-col rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-5 shadow-sm">
+                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white text-xl">🛠</div>
+                <h3 className="mb-1 text-base font-bold text-emerald-900">Pasantia Tecnica INFOTEP</h3>
+                <p className="mb-3 flex-1 text-xs text-emerald-700">Programa de pasantias remuneradas para estudiantes de Modalidad Tecnico Profesional en empresas aliadas del sector industrial y tecnologico.</p>
+                <div className="mb-3 space-y-1 text-xs text-emerald-800">
+                  <p>✔ Duracion: 3 a 6 meses</p>
+                  <p>✔ Remuneracion minima garantizada</p>
+                  <p>✔ Carta de recomendacion oficial</p>
+                </div>
+                <button className="w-full rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700">
+                  Ver vacantes
+                </button>
+              </article>
+
+              <article className="flex flex-col rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-sm">
+                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500 text-white text-xl">🌐</div>
+                <h3 className="mb-1 text-base font-bold text-amber-900">Intercambio Internacional MINERD</h3>
+                <p className="mb-3 flex-1 text-xs text-amber-800">Oportunidad de estudiar un semestre en universidades aliadas de Espana, Mexico o Estados Unidos. Dirigido a estudiantes con promedio superior a 85.</p>
+                <div className="mb-3 space-y-1 text-xs text-amber-800">
+                  <p>✔ Incluye boleto aereo y alojamiento</p>
+                  <p>✔ Reconocimiento de creditos</p>
+                  <p>✔ Convocatoria anual — julio</p>
+                </div>
+                <button className="w-full rounded-lg bg-amber-500 py-2 text-xs font-semibold text-white hover:bg-amber-600">
+                  Conocer requisitos
+                </button>
+              </article>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              Estas oportunidades estan disponibles gracias a tu registro en EDUMETRICS-DR. Para consultas escribe a <strong>becas@minerd.gob.do</strong>.
+            </div>
           </section>
         )}
 
