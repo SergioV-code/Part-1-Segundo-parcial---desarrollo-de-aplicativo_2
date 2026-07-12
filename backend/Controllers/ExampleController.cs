@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using EDUMETRICS_DR.Models;
+using Estudiante = EDUMETRICS_DR.Models.Student;
 
 namespace EDUMETRICS_DR.Controllers
 {
@@ -14,6 +15,7 @@ namespace EDUMETRICS_DR.Controllers
     public class ExampleController : ControllerBase
     {
         private readonly IMongoCollection<Student> _studentCollection;
+        private readonly IMongoCollection<Estudiante> _dbCollection;
         private readonly IMongoCollection<AuditLog> _auditLogCollection;
         private readonly ILogger<ExampleController> _logger;
 
@@ -23,8 +25,22 @@ namespace EDUMETRICS_DR.Controllers
             ILogger<ExampleController> logger)
         {
             _studentCollection = studentCollection ?? throw new ArgumentNullException(nameof(studentCollection));
+            _dbCollection = studentCollection;
             _auditLogCollection = auditLogCollection ?? throw new ArgumentNullException(nameof(auditLogCollection));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        }
+
+        private async Task RegistrarAuditoriaAsync(string accion, string entidad, string detalles, string rolUsuario)
+        {
+            await _auditLogCollection.InsertOneAsync(new AuditLog
+            {
+                Accion = accion,
+                Entidad = entidad,
+                Detalles = detalles,
+                RolUsuario = rolUsuario,
+                Fecha = DateTime.UtcNow,
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            });
         }
 
         /// <summary>
@@ -33,7 +49,7 @@ namespace EDUMETRICS_DR.Controllers
         /// </summary>
         /// <returns>Lista de estudiantes</returns>
         [HttpGet("AllExampleData")]
-        public async Task<ActionResult<IEnumerable<Student>>> GetAllExampleData()
+        public async Task<ActionResult<IEnumerable<Student>>> GetAllData()
         {
             try
             {
@@ -62,7 +78,7 @@ namespace EDUMETRICS_DR.Controllers
         /// <param name="student">Datos del nuevo estudiante</param>
         /// <returns>Estudiante creado con su ID</returns>
         [HttpPost("CreateExample")]
-        public async Task<ActionResult<Student>> PostCreateExample([FromBody] Student student)
+        public async Task<IActionResult> CreateExample([FromBody] Estudiante nuevoEstudiante)
         {
             try
             {
@@ -72,26 +88,38 @@ namespace EDUMETRICS_DR.Controllers
                     return StatusCode(403, new { error = "Acceso denegado para este rol" });
                 }
 
-                if (string.IsNullOrWhiteSpace(student.Nombre))
+                if (nuevoEstudiante == null)
+                    return BadRequest(new { error = "El cuerpo de la solicitud es inválido" });
+
+                if (!ModelState.IsValid)
+                    return BadRequest(ModelState);
+
+                if (string.IsNullOrWhiteSpace(nuevoEstudiante.Nombre))
                     return BadRequest(new { error = "El nombre del estudiante es requerido" });
 
-                if (string.IsNullOrWhiteSpace(student.Rne))
+                if (string.IsNullOrWhiteSpace(nuevoEstudiante.Cedula))
+                    return BadRequest(new { error = "La cédula del estudiante es requerida" });
+
+                if (string.IsNullOrWhiteSpace(nuevoEstudiante.CentroEducativo))
+                    return BadRequest(new { error = "El centro educativo es requerido" });
+
+                if (string.IsNullOrWhiteSpace(nuevoEstudiante.Rne))
                     return BadRequest(new { error = "El RNE es requerido" });
 
-                student.Id = ObjectId.GenerateNewId().ToString();
-                student.FechaCreacion = DateTime.UtcNow;
-                student.FechaActualizacion = DateTime.UtcNow;
+                nuevoEstudiante.Id = ObjectId.GenerateNewId().ToString();
+                nuevoEstudiante.FechaCreacion = DateTime.UtcNow;
+                nuevoEstudiante.FechaActualizacion = DateTime.UtcNow;
 
-                await _studentCollection.InsertOneAsync(student);
-                await _auditLogCollection.InsertOneAsync(new AuditLog
-                {
-                    Accion = "CREATE_STUDENT",
-                    Detalles = $"Estudiante creado: {student.Id} - {student.Nombre}",
-                    RolUsuario = userRole
-                });
+                await _dbCollection.InsertOneAsync(nuevoEstudiante);
+                await RegistrarAuditoriaAsync(
+                    "POST",
+                    "Estudiante",
+                    $"Estudiante creado: {nuevoEstudiante.Id} - {nuevoEstudiante.Nombre}",
+                    userRole
+                );
 
-                _logger.LogInformation($"[API] POST /api/CreateExample - Estudiante creado: {student.Id}");
-                return CreatedAtAction(nameof(PostCreateExample), new { id = student.Id }, student);
+                _logger.LogInformation($"[API] POST /api/CreateExample - Estudiante creado: {nuevoEstudiante.Id}");
+                return CreatedAtAction(nameof(GetAllData), new { id = nuevoEstudiante.Id }, nuevoEstudiante);
             }
             catch (Exception ex)
             {
@@ -112,8 +140,17 @@ namespace EDUMETRICS_DR.Controllers
         {
             try
             {
+                var userRole = Request.Headers["X-User-Role"].ToString();
+                if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
+                {
+                    return StatusCode(403, new { error = "Acceso denegado para este rol" });
+                }
+
                 if (!ObjectId.TryParse(id, out _))
                     return BadRequest(new { error = "ID inválido" });
+
+                if (student == null)
+                    return BadRequest(new { error = "El cuerpo de la solicitud es inválido" });
 
                 student.Id = id;
                 student.FechaActualizacion = DateTime.UtcNow;
@@ -125,6 +162,13 @@ namespace EDUMETRICS_DR.Controllers
 
                 if (result.MatchedCount == 0)
                     return NotFound(new { error = "Estudiante no encontrado" });
+
+                await RegistrarAuditoriaAsync(
+                    "PUT",
+                    "Estudiante",
+                    $"Estudiante actualizado (reemplazo completo): {id}",
+                    userRole
+                );
 
                 _logger.LogInformation($"[API] PUT /api/ChangeExampleData/{id} - Estudiante actualizado");
                 return NoContent();
@@ -143,7 +187,7 @@ namespace EDUMETRICS_DR.Controllers
         /// <param name="id">ID de MongoDB del estudiante</param>
         /// <returns>204 No Content si es exitoso</returns>
         [HttpDelete("DeleteExample/{id}")]
-        public async Task<IActionResult> DeleteDeleteExample(string id)
+        public async Task<IActionResult> DeleteExample(string id)
         {
             try
             {
@@ -156,19 +200,17 @@ namespace EDUMETRICS_DR.Controllers
                 if (!ObjectId.TryParse(id, out _))
                     return BadRequest(new { error = "ID inválido" });
 
-                var result = await _studentCollection.DeleteOneAsync(
-                    Builders<Student>.Filter.Eq(s => s.Id, id)
-                );
+                var result = await _dbCollection.DeleteOneAsync(x => x.Id == id);
 
                 if (result.DeletedCount == 0)
-                    return NotFound(new { error = "Estudiante no encontrado" });
+                    return NotFound();
 
-                await _auditLogCollection.InsertOneAsync(new AuditLog
-                {
-                    Accion = "DELETE_STUDENT",
-                    Detalles = $"Estudiante eliminado: {id}",
-                    RolUsuario = userRole
-                });
+                await RegistrarAuditoriaAsync(
+                    "DELETE",
+                    "Estudiante",
+                    $"Estudiante eliminado: {id}",
+                    userRole
+                );
 
                 _logger.LogInformation($"[API] DELETE /api/DeleteExample/{id} - Estudiante eliminado");
                 return NoContent();
@@ -192,6 +234,12 @@ namespace EDUMETRICS_DR.Controllers
         {
             try
             {
+                var userRole = Request.Headers["X-User-Role"].ToString();
+                if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
+                {
+                    return StatusCode(403, new { error = "Acceso denegado para este rol" });
+                }
+
                 if (!ObjectId.TryParse(id, out _))
                     return BadRequest(new { error = "ID inválido" });
 
@@ -250,6 +298,13 @@ namespace EDUMETRICS_DR.Controllers
 
                 if (result == null)
                     return NotFound(new { error = "Estudiante no encontrado" });
+
+                await RegistrarAuditoriaAsync(
+                    "PATCH",
+                    "Estudiante",
+                    $"Estudiante actualizado parcialmente: {id}. Campos: {string.Join(", ", updates.Keys)}",
+                    userRole
+                );
 
                 _logger.LogInformation($"[API] PATCH /api/PatchExampleData/{id} - Estudiante parcialmente actualizado");
                 return Ok(result);

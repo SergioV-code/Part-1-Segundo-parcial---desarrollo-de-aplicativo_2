@@ -53,7 +53,7 @@ function App() {
     modalidadAcademica: 'Académica',
   })
 
-  const fetchStudents = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true)
       setError('')
@@ -76,8 +76,25 @@ function App() {
   }
 
   useEffect(() => {
-    fetchStudents()
+    fetchData()
   }, [])
+
+  const handleRegister = async (estudiante) => {
+    const response = await fetch(`${API_BASE.replace(/\/api$/, '')}/api/CreateExample`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...USER_ROLE_HEADER,
+      },
+      body: JSON.stringify(estudiante),
+    })
+
+    if (response.ok) {
+      await fetchData()
+    }
+
+    return response
+  }
 
   const reportes = useMemo(() => {
     let academica = 0
@@ -127,18 +144,14 @@ function App() {
         rne: generatedRne,
       }
 
-      const response = await fetch(`${API_BASE}/CreateExample`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...USER_ROLE_HEADER,
-        },
-        body: JSON.stringify(payload),
-      })
+      const response = await handleRegister(payload)
 
       if (!response.ok) {
         throw new Error(`Error HTTP ${response.status}`)
       }
+
+      console.log('Estudiante creado correctamente')
+      alert('Estudiante registrado correctamente')
 
       setForm({
         nombre: '',
@@ -147,8 +160,10 @@ function App() {
         modalidadAcademica: 'Académica',
       })
 
-      await fetchStudents()
+      await fetchData()
     } catch (err) {
+      console.error('Error al crear estudiante', err)
+      alert('No fue posible crear el estudiante')
       setError(err instanceof Error ? err.message : 'No fue posible crear el estudiante')
     } finally {
       setSubmitting(false)
@@ -162,17 +177,24 @@ function App() {
       setDeletingId(id)
       setError('')
 
-      const response = await fetch(`${API_BASE}/DeleteExample/${id}`, {
+      const response = await fetch(`${API_BASE.replace(/\/api$/, '')}/api/DeleteExample/${id}`, {
         method: 'DELETE',
-        headers: USER_ROLE_HEADER,
+        headers: {
+          ...USER_ROLE_HEADER,
+        },
       })
 
       if (!response.ok) {
         throw new Error(`Error HTTP ${response.status}`)
       }
 
-      await fetchStudents()
+      console.log('Estudiante eliminado correctamente')
+      alert('Estudiante eliminado correctamente')
+
+      await fetchData()
     } catch (err) {
+      console.error('Error al eliminar estudiante', err)
+      alert('No fue posible eliminar el estudiante')
       setError(err instanceof Error ? err.message : 'No fue posible eliminar el estudiante')
     } finally {
       setDeletingId('')
