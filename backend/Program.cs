@@ -87,11 +87,20 @@ builder.Services.AddSwaggerGen(c =>
 // ==================== CORS CONFIGURATION ====================
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowReactLocal", policy =>
+    options.AddPolicy("AllowSpecificOrigins", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        if (builder.Environment.IsDevelopment())
+        {
+            // En desarrollo, permitimos todo para facilitar el debugging
+            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+        }
+        else
+        {
+            // En producción, restringimos estrictamente a tu URL de Railway
+            policy.WithOrigins("https://resilient-transformation-production.up.railway.app")
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        }
     });
 });
 
@@ -131,8 +140,8 @@ app.Use(async (context, next) =>
     await next();
 });
 
+app.UseCors("AllowSpecificOrigins");
 app.UseAuthorization();
-app.UseCors("AllowReactLocal");
 app.MapControllers();
 
 app.Run();

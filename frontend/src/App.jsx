@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 
 const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim()
 const normalizedApiUrl = rawApiUrl.replace(/\/$/, '')
+const fallbackApiOrigin = typeof window !== 'undefined' ? window.location.origin : ''
 const API_BASE = normalizedApiUrl
   ? (normalizedApiUrl.endsWith('/api') ? normalizedApiUrl : `${normalizedApiUrl}/api`)
-  : 'http://localhost:5123/api'
+  : (fallbackApiOrigin ? `${fallbackApiOrigin}/api` : '/api')
 const USER_ROLE_HEADER = { 'X-User-Role': 'Admin' }
 
 const pageStyle = {
