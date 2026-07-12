@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 
-const API_BASE = 'http://localhost:5123/api'
+const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim()
+const normalizedApiUrl = rawApiUrl.replace(/\/$/, '')
+const API_BASE = normalizedApiUrl
+  ? (normalizedApiUrl.endsWith('/api') ? normalizedApiUrl : `${normalizedApiUrl}/api`)
+  : 'http://localhost:5123/api'
 const USER_ROLE_HEADER = { 'X-User-Role': 'Admin' }
 
 const pageStyle = {
