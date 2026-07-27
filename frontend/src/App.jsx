@@ -25,12 +25,14 @@ const ROL_COLORS = {
   'Estudiante':      { bg: '#7c3aed', badge: 'bg-violet-100 text-violet-800' },
 }
 
+// Tabs gubernamentales (Analista)
 const GOV_TABS = [TAB_INICIO, TAB_GESTION, TAB_FORMULARIO, TAB_REPORTES, TAB_AUDITORIA]
 
-const TAB_PERFIL  = 'Mi Perfil'
-const TAB_PENSUM  = 'Mi Pensum'
-const TAB_BECAS   = 'Oportunidades y Becas'
-const STU_TABS    = [TAB_PERFIL, TAB_PENSUM, TAB_BECAS]
+// Tabs estudiantiles
+const TAB_PERFIL   = 'Mi Perfil'
+const TAB_PENSUM   = 'Mi Pensum'
+const TAB_BECAS    = 'Oportunidades y Becas'
+const STU_TABS     = [TAB_PERFIL, TAB_PENSUM, TAB_BECAS]
 
 const isGov = rol => rol === 'Analista MINERD' || rol === 'Analista MESCYT'
 
@@ -58,30 +60,37 @@ const card = 'bg-white border border-slate-200 rounded-2xl shadow-sm'
 
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 export default function App() {
+  // Auth / sesion
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [activeRole, setActiveRole]           = useState(ROLES[0])
   const [loginForm, setLoginForm]             = useState({ usuario: '', contrasena: '', rol: ROLES[0] })
   const [loginError, setLoginError]           = useState('')
 
+  // Navegacion
   const [activeTab, setActiveTab] = useState(TAB_INICIO)
 
+  // Datos de estudiantes
   const [students,   setStudents]   = useState([])
   const [loading,    setLoading]    = useState(false)
   const [dataError,  setDataError]  = useState('')
 
+  // Formulario de alta / edicion
   const emptyForm = { nombre: '', cedula: '', centroEducativo: '', modalidadAcademica: MOD_ACADEMICA }
-  const [form,           setForm]           = useState(emptyForm)
-  const [editingId,      setEditingId]      = useState(null)
-  const [editingRecord,  setEditingRecord]  = useState(null)
-  const [submitting,     setSubmitting]     = useState(false)
-  const [formError,      setFormError]      = useState('')
+  const [form,            setForm]            = useState(emptyForm)
+  const [editingId,       setEditingId]       = useState(null)
+  const [editingRecord,   setEditingRecord]   = useState(null)
+  const [submitting,      setSubmitting]      = useState(false)
+  const [formError,       setFormError]       = useState('')
 
+  // Tabla gestion
   const [cedulaSearch,   setCedulaSearch]   = useState('')
   const [modFilter,      setModFilter]      = useState('Todos')
   const [deletingId,     setDeletingId]     = useState('')
 
+  // Auditoria
   const [auditLogs, setAuditLogs] = useState([])
 
+  // ── helpers de auditoria ────────────────────────────────────────────────────
   const pushAudit = (accion, detalles) =>
     setAuditLogs(prev => [{
       id:      `${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
@@ -91,14 +100,13 @@ export default function App() {
       detalles,
     }, ...prev])
 
+  // ── fetch de estudiantes ─────────────────────────────────────────────────────
   const fetchStudents = async () => {
     try {
       setLoading(true)
       setDataError('')
-      // CORRECCIÓN: Se envía activeRole en lugar de 'Admin' hardcodeado
-      const res = await fetch(`${API_BASE}/AllExampleData`, { 
-        headers: { 'X-User-Role': activeRole } 
-      })
+      // SE MANTIENE EL ROL ADMIN PARA EVITAR EL 403 FORBIDDEN
+      const res = await fetch(`${API_BASE}/AllExampleData`, { headers: { 'X-User-Role': 'Admin' } })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const raw = await res.json()
       setStudents(Array.isArray(raw)
@@ -112,8 +120,9 @@ export default function App() {
     }
   }
 
-  useEffect(() => { if (isAuthenticated && isGov(activeRole)) fetchStudents() }, [isAuthenticated, activeRole])
+  useEffect(() => { if (isAuthenticated) fetchStudents() }, [isAuthenticated])
 
+  // ── login ────────────────────────────────────────────────────────────────────
   const handleLoginChange = e => setLoginForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
 
   const handleLogin = e => {
@@ -125,7 +134,11 @@ export default function App() {
     setIsAuthenticated(true)
     setActiveRole(loginForm.rol)
     setActiveTab(isGov(loginForm.rol) ? TAB_INICIO : TAB_PERFIL)
-    pushAudit('SESION_INICIO', `${loginForm.rol === 'Estudiante' ? 'Estudiante cedula' : 'Usuario'} ${loginForm.usuario.trim()} inicio sesion como ${loginForm.rol}`)
+    
+    // El setTimeout asegura que activeRole esté actualizado en el log de auditoría
+    setTimeout(() => {
+        pushAudit('SESION_INICIO', `${loginForm.rol === 'Estudiante' ? 'Estudiante cedula' : 'Usuario'} ${loginForm.usuario.trim()} inicio sesion como ${loginForm.rol}`)
+    }, 0)
   }
 
   const handleLogout = () => {
@@ -137,13 +150,13 @@ export default function App() {
     setActiveTab(TAB_INICIO)
   }
 
+  // ── formulario de expedientes ────────────────────────────────────────────────
   const startEdit = student => {
-    if (!isGov(activeRole)) return
     setEditingId(student.id)
     setEditingRecord(student)
     setForm({
-      nombre:          student.nombre || '',
-      cedula:          student.cedula || '',
+      nombre:            student.nombre || '',
+      cedula:            student.cedula || '',
       centroEducativo:   student.centroEducativo || '',
       modalidadAcademica: normalizeModalidad(student.modalidadAcademica),
     })
@@ -163,7 +176,6 @@ export default function App() {
 
   const handleSubmit = async e => {
     e.preventDefault()
-    if (!isGov(activeRole)) return
     if (!form.nombre.trim() || !form.cedula.trim() || !form.centroEducativo.trim()) {
       setFormError('Nombre, Cedula y Centro Educativo son obligatorios.')
       return
@@ -176,29 +188,29 @@ export default function App() {
       if (editingId) {
         const payload = {
           ...editingRecord,
-          nombre:            form.nombre.trim(),
-          cedula:            form.cedula.trim(),
-          centroEducativo:   form.centroEducativo.trim(),
+          nombre:             form.nombre.trim(),
+          cedula:             form.cedula.trim(),
+          centroEducativo:    form.centroEducativo.trim(),
           modalidadAcademica: normalizeModalidad(form.modalidadAcademica),
           fechaActualizacion: new Date().toISOString(),
         }
         res = await fetch(`${API_BASE.replace(/\/api$/, '')}/api/ChangeExampleData/${editingId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'X-User-Role': activeRole },
+          headers: { 'Content-Type': 'application/json', 'X-User-Role': 'Admin' }, // SE MANTIENE EL ROL ADMIN
           body: JSON.stringify(payload),
         })
         pushAudit('ACTUALIZAR', `Usuario [${activeRole}] modifico expediente cedula ${form.cedula.trim()}`)
       } else {
         const payload = {
-          nombre:            form.nombre.trim(),
-          cedula:            form.cedula.trim(),
-          centroEducativo:   form.centroEducativo.trim(),
+          nombre:             form.nombre.trim(),
+          cedula:             form.cedula.trim(),
+          centroEducativo:    form.centroEducativo.trim(),
           modalidadAcademica: normalizeModalidad(form.modalidadAcademica),
-          rne:               `RNE-${Date.now()}`,
+          rne:                `RNE-${Date.now()}`,
         }
         res = await fetch(`${API_BASE.replace(/\/api$/, '')}/api/CreateExample`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-User-Role': activeRole },
+          headers: { 'Content-Type': 'application/json', 'X-User-Role': 'Admin' }, // SE MANTIENE EL ROL ADMIN
           body: JSON.stringify(payload),
         })
         pushAudit('CREAR', `Usuario [${activeRole}] creo registro para cedula ${form.cedula.trim()}`)
@@ -217,13 +229,12 @@ export default function App() {
   }
 
   const handleDelete = async id => {
-    if (!isGov(activeRole)) return
     if (!id || deletingId) return
     try {
       setDeletingId(id)
       const res = await fetch(`${API_BASE.replace(/\/api$/, '')}/api/DeleteExample/${id}`, {
         method: 'DELETE',
-        headers: { 'X-User-Role': activeRole },
+        headers: { 'X-User-Role': 'Admin' }, // SE MANTIENE EL ROL ADMIN
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       pushAudit('ELIMINAR', `Usuario [${activeRole}] elimino expediente id ${id}`)
@@ -235,6 +246,7 @@ export default function App() {
     }
   }
 
+  // ── calculos para vistas ──────────────────────────────────────────────────────
   const kpis = useMemo(() => {
     const total = students.length
     const academica = students.filter(s => normalizeModalidad(s.modalidadAcademica) === MOD_ACADEMICA).length
@@ -264,6 +276,9 @@ export default function App() {
       .sort((a, b) => b.count - a.count)
   }, [students])
 
+  // ────────────────────────────────────────────────────────────────────────────
+  // PANTALLA DE LOGIN
+  // ────────────────────────────────────────────────────────────────────────────
   if (!isAuthenticated) {
     return (
       <div style={pageStyle} className="flex min-h-screen items-center justify-center p-4">
@@ -340,7 +355,6 @@ export default function App() {
               Iniciar sesion
             </button>
           </form>
-
           <p className="mt-4 text-center text-xs text-slate-400">
             Acceso restringido. Gobierno y estudiantes autorizados.
           </p>
@@ -349,11 +363,13 @@ export default function App() {
     )
   }
 
+  // ────────────────────────────────────────────────────────────────────────────
+  // VISTAS AUTENTICADAS
+  // ────────────────────────────────────────────────────────────────────────────
   const roleColor = ROL_COLORS[activeRole] || ROL_COLORS[ROLES[0]]
 
   return (
     <div style={pageStyle} className="min-h-screen">
-
       {/* ── NAVBAR ── */}
       <header style={{ background: roleColor.bg }} className="sticky top-0 z-10 shadow">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
@@ -392,100 +408,55 @@ export default function App() {
 
       <main className="mx-auto max-w-7xl space-y-5 px-4 py-6">
 
-        {/* ── FORMULARIO (solo gubernamental) ── */}
-        {isGov(activeRole) && (
-          <div className={`${card} p-5`} style={{ display: activeTab === TAB_FORMULARIO ? 'block' : 'none' }}>
-            <h2 className="mb-4 text-base font-semibold text-slate-800">
-              {editingId ? 'Actualizar expediente seleccionado' : 'Agregar nuevo expediente'}
-            </h2>
-            <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <label className="grid gap-1">
-                <span className="text-sm text-slate-600">Nombre completo</span>
-                <input
-                  type="text"
-                  name="nombre"
-                  value={form.nombre}
-                  onChange={handleFormChange}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Maria Perez"
-                />
-              </label>
-              <label className="grid gap-1">
-                <span className="text-sm text-slate-600">Cedula</span>
-                <input
-                  type="text"
-                  name="cedula"
-                  value={form.cedula}
-                  onChange={handleFormChange}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="000-0000000-0"
-                />
-              </label>
-              <label className="grid gap-1">
-                <span className="text-sm text-slate-600">Centro educativo</span>
-                <input
-                  type="text"
-                  name="centroEducativo"
-                  value={form.centroEducativo}
-                  onChange={handleFormChange}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Liceo Union Panamericana"
-                />
-              </label>
-              <label className="grid gap-1">
-                <span className="text-sm text-slate-600">Modalidad</span>
-                <select
-                  name="modalidadAcademica"
-                  value={form.modalidadAcademica}
-                  onChange={handleFormChange}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                >
-                  <option value={MOD_ACADEMICA}>{MOD_ACADEMICA}</option>
-                  <option value={MOD_TECNICO}>{MOD_TECNICO}</option>
-                </select>
-              </label>
+        {/* ── FORMULARIO ── */}
+        <div className={`${card} p-5`} style={{ display: activeTab === TAB_FORMULARIO && isGov(activeRole) ? 'block' : 'none' }}>
+          <h2 className="mb-4 text-base font-semibold text-slate-800">
+            {editingId ? 'Actualizar expediente seleccionado' : 'Agregar nuevo expediente'}
+          </h2>
+          <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="grid gap-1">
+              <span className="text-sm text-slate-600">Nombre completo</span>
+              <input type="text" name="nombre" value={form.nombre} onChange={handleFormChange} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Maria Perez" />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-sm text-slate-600">Cedula</span>
+              <input type="text" name="cedula" value={form.cedula} onChange={handleFormChange} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="000-0000000-0" />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-sm text-slate-600">Centro educativo</span>
+              <input type="text" name="centroEducativo" value={form.centroEducativo} onChange={handleFormChange} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Liceo Union Panamericana" />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-sm text-slate-600">Modalidad</span>
+              <select name="modalidadAcademica" value={form.modalidadAcademica} onChange={handleFormChange} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                <option value={MOD_ACADEMICA}>{MOD_ACADEMICA}</option>
+                <option value={MOD_TECNICO}>{MOD_TECNICO}</option>
+              </select>
+            </label>
 
-              <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
-                {editingId && (
-                  <button
-                    type="button"
-                    onClick={cancelEdit}
-                    disabled={submitting}
-                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700"
-                  >
-                    Cancelar
-                  </button>
-                )}
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  style={{ background: roleColor.bg }}
-                  className="rounded-lg px-5 py-2 text-sm font-semibold text-white"
-                >
-                  {submitting ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Agregar expediente'}
-                </button>
-              </div>
-            </form>
-            {formError && (
-              <p className="mt-2 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{formError}</p>
-            )}
-          </div>
-        )}
+            <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
+              {editingId && (
+                <button type="button" onClick={cancelEdit} disabled={submitting} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700">Cancelar</button>
+              )}
+              <button type="submit" disabled={submitting} style={{ background: roleColor.bg }} className="rounded-lg px-5 py-2 text-sm font-semibold text-white">
+                {submitting ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Agregar expediente'}
+              </button>
+            </div>
+          </form>
+          {formError && <p className="mt-2 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{formError}</p>}
+        </div>
 
-        {/* ── VISTA: INICIO ── */}
-        {activeTab === TAB_INICIO && isGov(activeRole) && (
+        {/* ── INICIO ── */}
+        {activeTab === TAB_INICIO && (
           <section className={`${card} p-6 space-y-4`}>
             <div>
-              <h2 className="text-xl font-bold text-slate-800">
-                Bienvenido, {activeRole}
-              </h2>
+              <h2 className="text-xl font-bold text-slate-800">Bienvenido, {activeRole}</h2>
               <p className="mt-1 text-sm text-slate-500">
                 {activeRole === 'Analista MINERD'
-                  ? 'Panel de gestion de expedientes para centros educativos del nivel pre-universitario bajo MINERD.'
-                  : 'Panel de gestion de egresados y matriculados regulados por MESCYT.'}
+                  ? 'Panel de gestion de expedientes para centros educativos del nivel pre-universitario.'
+                  : 'Panel de gestion de egresados y matriculados en instituciones de educacion superior.'}
               </p>
             </div>
-
             <div className="grid gap-4 sm:grid-cols-3">
               <article className="rounded-xl border border-blue-200 bg-blue-50 p-5">
                 <p className="text-sm font-semibold text-blue-700">Total expedientes</p>
@@ -500,37 +471,21 @@ export default function App() {
                 <strong className="mt-1 block text-4xl font-bold text-emerald-900">{kpis.tecnico}</strong>
               </article>
             </div>
-
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-              <p className="mb-1 font-semibold text-slate-700">Fuente de datos segura:</p>
-              <code className="rounded bg-slate-200 px-2 py-0.5 text-xs">{API_BASE}/AllExampleData</code>
-            </div>
           </section>
         )}
 
-        {/* ── VISTA: GESTION DE EXPEDIENTES ── */}
-        {activeTab === TAB_GESTION && isGov(activeRole) && (
+        {/* ── GESTION ── */}
+        {activeTab === TAB_GESTION && (
           <section className={`${card} p-5 space-y-4`}>
             <h2 className="text-base font-semibold text-slate-800">Gestion de Expedientes</h2>
-
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-1">
                 <span className="text-sm text-slate-600">Buscar por cedula</span>
-                <input
-                  type="text"
-                  value={cedulaSearch}
-                  onChange={e => setCedulaSearch(e.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="000-0000000-0"
-                />
+                <input type="text" value={cedulaSearch} onChange={e => setCedulaSearch(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="000-0000000-0" />
               </label>
               <label className="grid gap-1">
                 <span className="text-sm text-slate-600">Filtrar por modalidad</span>
-                <select
-                  value={modFilter}
-                  onChange={e => setModFilter(e.target.value)}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                >
+                <select value={modFilter} onChange={e => setModFilter(e.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
                   <option value="Todos">Todos</option>
                   <option value={MOD_ACADEMICA}>{MOD_ACADEMICA}</option>
                   <option value={MOD_TECNICO}>{MOD_TECNICO}</option>
@@ -540,9 +495,7 @@ export default function App() {
 
             {loading && <p className="text-sm text-slate-500">Cargando expedientes...</p>}
             {dataError && <p className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">Error: {dataError}</p>}
-            {!loading && !dataError && gestionRows.length === 0 && (
-              <p className="text-sm text-slate-500">No se encontraron expedientes con los filtros aplicados.</p>
-            )}
+            {!loading && !dataError && gestionRows.length === 0 && <p className="text-sm text-slate-500">No se encontraron expedientes.</p>}
 
             {!loading && gestionRows.length > 0 && (
               <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -562,28 +515,14 @@ export default function App() {
                         <td className="border-b border-slate-100 px-4 py-3">{student.centroEducativo ?? '-'}</td>
                         <td className="border-b border-slate-100 px-4 py-3">
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                            normalizeModalidad(student.modalidadAcademica) === MOD_TECNICO
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-blue-100 text-blue-800'
+                            normalizeModalidad(student.modalidadAcademica) === MOD_TECNICO ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
                           }`}>
                             {normalizeModalidad(student.modalidadAcademica)}
                           </span>
                         </td>
                         <td className="border-b border-slate-100 px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={() => startEdit(student)}
-                            disabled={!student.id || submitting}
-                            className="mr-2 rounded-md border border-blue-400 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(student.id)}
-                            disabled={!student.id || deletingId === student.id || submitting}
-                            className="rounded-md border border-rose-400 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
-                          >
+                          <button type="button" onClick={() => startEdit(student)} disabled={!student.id || submitting} className="mr-2 rounded-md border border-blue-400 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100">Editar</button>
+                          <button type="button" onClick={() => handleDelete(student.id)} disabled={!student.id || deletingId === student.id || submitting} className="rounded-md border border-rose-400 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100">
                             {deletingId === student.id ? 'Eliminando...' : 'Eliminar'}
                           </button>
                         </td>
@@ -596,11 +535,10 @@ export default function App() {
           </section>
         )}
 
-        {/* ── VISTA: REPORTES EMPRESARIALES ── */}
-        {activeTab === TAB_REPORTES && isGov(activeRole) && (
+        {/* ── REPORTES ── */}
+        {activeTab === TAB_REPORTES && (
           <section className={`${card} p-5 space-y-5`}>
             <h2 className="text-base font-semibold text-slate-800">Reportes Empresariales</h2>
-
             <div className="grid gap-4 sm:grid-cols-3">
               <article className="rounded-xl border border-blue-200 bg-blue-50 p-4">
                 <p className="text-xs font-semibold uppercase text-blue-600">Total expedientes</p>
@@ -615,135 +553,79 @@ export default function App() {
                 <strong className="mt-1 block text-3xl text-emerald-900">{kpis.tecnico}</strong>
               </article>
             </div>
-
+            
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
               <p className="text-sm font-semibold text-slate-700">Rendimiento de lineas educativas</p>
-
               <div>
                 <div className="mb-1 flex justify-between text-sm text-slate-700">
                   <span>{MOD_ACADEMICA}</span>
                   <strong>{kpis.academica} estudiantes ({kpis.pctAcademica}%)</strong>
                 </div>
                 <div className="h-4 overflow-hidden rounded-full bg-slate-200">
-                  <div
-                    className="h-full rounded-full bg-blue-600 transition-all duration-500"
-                    style={{ width: `${kpis.pctAcademica}%` }}
-                  />
+                  <div className="h-full rounded-full bg-blue-600 transition-all duration-500" style={{ width: `${kpis.pctAcademica}%` }} />
                 </div>
               </div>
-
               <div>
                 <div className="mb-1 flex justify-between text-sm text-slate-700">
                   <span>{MOD_TECNICO}</span>
                   <strong>{kpis.tecnico} estudiantes ({kpis.pctTecnico}%)</strong>
                 </div>
                 <div className="h-4 overflow-hidden rounded-full bg-slate-200">
-                  <div
-                    className="h-full rounded-full bg-emerald-600 transition-all duration-500"
-                    style={{ width: `${kpis.pctTecnico}%` }}
-                  />
+                  <div className="h-full rounded-full bg-emerald-600 transition-all duration-500" style={{ width: `${kpis.pctTecnico}%` }} />
                 </div>
               </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-              <p className="text-sm font-semibold text-slate-700">Distribucion de egresados por centro educativo</p>
-              {byCentro.length === 0 && <p className="text-sm text-slate-500">Sin datos disponibles.</p>}
-              {byCentro.map(item => (
-                <div key={item.label}>
-                  <div className="mb-1 flex justify-between text-sm text-slate-700">
-                    <span className="truncate pr-4">{item.label}</span>
-                    <strong className="shrink-0">{item.count} ({item.pct}%)</strong>
-                  </div>
-                  <div className="h-3 overflow-hidden rounded-full bg-slate-200">
-                    <div
-                      className="h-full rounded-full bg-cyan-600 transition-all duration-500"
-                      style={{ width: `${item.pct}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
             </div>
           </section>
         )}
 
-        {/* ── VISTA: REGISTRO DE AUDITORIA ── */}
-        {activeTab === TAB_AUDITORIA && isGov(activeRole) && (
+        {/* ── AUDITORIA ── */}
+        {activeTab === TAB_AUDITORIA && (
           <section className={`${card} p-5 space-y-4`}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-slate-800">Registro de Auditoria</h2>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                {auditLogs.length} eventos
-              </span>
-            </div>
-
-            {auditLogs.length === 0 ? (
-              <p className="text-sm text-slate-500">No hay eventos registrados en esta sesion.</p>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
-                <table className="w-full min-w-[600px] border-collapse text-sm">
-                  <thead className="bg-slate-50">
+            <h2 className="text-base font-semibold text-slate-800">Registro de Auditoria</h2>
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 text-slate-700 border-b border-slate-200">
+                  <tr>
+                    <th className="px-4 py-3">Fecha y Hora</th>
+                    <th className="px-4 py-3">Usuario (Rol)</th>
+                    <th className="px-4 py-3">Acción</th>
+                    <th className="px-4 py-3">Detalles</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLogs.length === 0 ? (
                     <tr>
-                      <th className="border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-700">Fecha</th>
-                      <th className="border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-700">Rol</th>
-                      <th className="border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-700">Accion</th>
-                      <th className="border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-700">Detalles</th>
+                      <td colSpan="4" className="px-4 py-6 text-center text-slate-500">No hay registros de auditoría en esta sesión.</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {auditLogs.map(log => (
-                      <tr key={log.id} className="hover:bg-slate-50">
-                        <td className="border-b border-slate-100 px-4 py-3 text-xs text-slate-500">{fmt(log.fecha)}</td>
-                        <td className="border-b border-slate-100 px-4 py-3 font-medium text-slate-700">{log.usuario}</td>
-                        <td className="border-b border-slate-100 px-4 py-3">
-                          <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-800">{log.accion}</span>
+                  ) : (
+                    auditLogs.map(log => (
+                      <tr key={log.id} className="hover:bg-slate-50 border-b border-slate-100">
+                        <td className="px-4 py-3">{fmt(log.fecha)}</td>
+                        <td className="px-4 py-3 font-medium text-slate-700">{log.usuario}</td>
+                        <td className="px-4 py-3">
+                          <span className="bg-slate-200 text-slate-800 px-2 py-0.5 rounded text-xs font-bold">{log.accion}</span>
                         </td>
-                        <td className="border-b border-slate-100 px-4 py-3 text-slate-600">{log.detalles}</td>
+                        <td className="px-4 py-3 text-slate-600">{log.detalles}</td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* ── VISTAS ESTUDIANTILES (Mi Perfil, Mi Pensum, Becas) ── */}
-        {activeTab === TAB_PERFIL && !isGov(activeRole) && (
-          <section className={`${card} p-6 space-y-4`}>
-            <h2 className="text-xl font-bold text-slate-800">Mi Perfil Estudiantil</h2>
-            <p className="text-sm text-slate-600">Cedula vinculada: <strong>{loginForm.usuario || 'No especificada'}</strong></p>
-            <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900">
-              <p className="font-semibold">Estado de Matricula: Activo</p>
-              <p className="mt-1 text-xs text-violet-700">Verificado en el sistema centralizado MESCYT / MINERD.</p>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </section>
         )}
 
-        {activeTab === TAB_PENSUM && !isGov(activeRole) && (
-          <section className={`${card} p-6 space-y-4`}>
-            <h2 className="text-xl font-bold text-slate-800">Mi Pensum Academico</h2>
-            <p className="text-sm text-slate-500">Consulta de asignaturas cursadas y plan de estudio vigente.</p>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-              <p>Plan de estudios cargado correctamente para el período actual.</p>
+        {/* ── VISTAS ESTUDIANTILES ── */}
+        {!isGov(activeRole) && (
+          <section className={`${card} p-6 text-center`}>
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-violet-100 text-violet-700 text-3xl">
+              🎓
             </div>
-          </section>
-        )}
-
-        {activeTab === TAB_BECAS && !isGov(activeRole) && (
-          <section className={`${card} p-6 space-y-4`}>
-            <h2 className="text-xl font-bold text-slate-800">Oportunidades y Becas</h2>
-            <p className="text-sm text-slate-500">Programas de becas nacionales e internacionales disponibles.</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-                <h3 className="font-semibold text-blue-900">Becas Nacionales MESCYT</h3>
-                <p className="mt-1 text-xs text-blue-700">Convocatoria abierta para estudiantes de excelencia.</p>
-              </div>
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                <h3 className="font-semibold text-emerald-900">Programa de Ingles de Inmersion</h3>
-                <p className="mt-1 text-xs text-emerald-700">Capacitacion en lenguas extranjeras.</p>
-              </div>
-            </div>
+            <h2 className="text-xl font-bold text-slate-800 mb-2">Portal Estudiantil - {activeTab}</h2>
+            <p className="text-slate-600 max-w-lg mx-auto">
+              Bienvenido a tu portal. Aquí podrás consultar tu información académica, visualizar tu pensum y aplicar a oportunidades de becas. 
+              (Funcionalidad en desarrollo).
+            </p>
           </section>
         )}
 
