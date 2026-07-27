@@ -24,6 +24,9 @@ namespace EDUMETRICS_DR.Models
         [BsonElement("timestamp")]
         public long Timestamp { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
+        [BsonElement("usuario")]
+        public string Usuario { get; set; } = string.Empty;
+
         [BsonElement("rolUsuario")]
         public string RolUsuario { get; set; } = string.Empty;
     }

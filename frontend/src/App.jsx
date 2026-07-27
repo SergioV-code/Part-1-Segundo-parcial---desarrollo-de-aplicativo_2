@@ -12,12 +12,11 @@ const API_BASE = normalizedApiUrl
 const MOD_ACADEMICA = 'Modalidad Academica'
 const MOD_TECNICO   = 'Modalidad Tecnico Profesional'
 
-const TAB_INICIO    = 'Inicio'
-const TAB_GESTION   = 'Gestion de Expedientes'
+const TAB_INICIO     = 'Inicio'
+const TAB_GESTION    = 'Gestion de Expedientes'
 const TAB_FORMULARIO = 'Formulario de Registro'
-const TAB_REPORTES  = 'Reportes Empresariales'
-const TAB_AUDITORIA = 'Registro de Auditoria'
-const NAV_TABS = [TAB_INICIO, TAB_GESTION, TAB_FORMULARIO, TAB_REPORTES, TAB_AUDITORIA]
+const TAB_REPORTES   = 'Reportes Empresariales'
+const TAB_AUDITORIA  = 'Registro de Auditoria'
 
 const ROLES = ['Analista MINERD', 'Analista MESCYT', 'Estudiante']
 const ROL_COLORS = {
@@ -26,14 +25,12 @@ const ROL_COLORS = {
   'Estudiante':      { bg: '#7c3aed', badge: 'bg-violet-100 text-violet-800' },
 }
 
-// Tabs gubernamentales (Analista)
 const GOV_TABS = [TAB_INICIO, TAB_GESTION, TAB_FORMULARIO, TAB_REPORTES, TAB_AUDITORIA]
 
-// Tabs estudiantiles
-const TAB_PERFIL    = 'Mi Perfil'
-const TAB_PENSUM    = 'Mi Pensum'
-const TAB_BECAS     = 'Oportunidades y Becas'
-const STU_TABS      = [TAB_PERFIL, TAB_PENSUM, TAB_BECAS]
+const TAB_PERFIL  = 'Mi Perfil'
+const TAB_PENSUM  = 'Mi Pensum'
+const TAB_BECAS   = 'Oportunidades y Becas'
+const STU_TABS    = [TAB_PERFIL, TAB_PENSUM, TAB_BECAS]
 
 const isGov = rol => rol === 'Analista MINERD' || rol === 'Analista MESCYT'
 
@@ -61,21 +58,17 @@ const card = 'bg-white border border-slate-200 rounded-2xl shadow-sm'
 
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 export default function App() {
-  // Auth / sesion
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [activeRole, setActiveRole]           = useState(ROLES[0])
   const [loginForm, setLoginForm]             = useState({ usuario: '', contrasena: '', rol: ROLES[0] })
   const [loginError, setLoginError]           = useState('')
 
-  // Navegacion
   const [activeTab, setActiveTab] = useState(TAB_INICIO)
 
-  // Datos de estudiantes
   const [students,   setStudents]   = useState([])
   const [loading,    setLoading]    = useState(false)
   const [dataError,  setDataError]  = useState('')
 
-  // Formulario de alta / edicion
   const emptyForm = { nombre: '', cedula: '', centroEducativo: '', modalidadAcademica: MOD_ACADEMICA }
   const [form,           setForm]           = useState(emptyForm)
   const [editingId,      setEditingId]      = useState(null)
@@ -83,15 +76,12 @@ export default function App() {
   const [submitting,     setSubmitting]     = useState(false)
   const [formError,      setFormError]      = useState('')
 
-  // Tabla gestion
   const [cedulaSearch,   setCedulaSearch]   = useState('')
   const [modFilter,      setModFilter]      = useState('Todos')
   const [deletingId,     setDeletingId]     = useState('')
 
-  // Auditoria
   const [auditLogs, setAuditLogs] = useState([])
 
-  // ── helpers de auditoria ────────────────────────────────────────────────────
   const pushAudit = (accion, detalles) =>
     setAuditLogs(prev => [{
       id:      `${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
@@ -101,12 +91,14 @@ export default function App() {
       detalles,
     }, ...prev])
 
-  // ── fetch de estudiantes ─────────────────────────────────────────────────────
   const fetchStudents = async () => {
     try {
       setLoading(true)
       setDataError('')
-      const res = await fetch(`${API_BASE}/AllExampleData`, { headers: { 'X-User-Role': 'Admin' } })
+      // CORRECCIÓN: Se envía activeRole en lugar de 'Admin' hardcodeado
+      const res = await fetch(`${API_BASE}/AllExampleData`, { 
+        headers: { 'X-User-Role': activeRole } 
+      })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const raw = await res.json()
       setStudents(Array.isArray(raw)
@@ -120,9 +112,8 @@ export default function App() {
     }
   }
 
-  useEffect(() => { if (isAuthenticated) fetchStudents() }, [isAuthenticated])
+  useEffect(() => { if (isAuthenticated && isGov(activeRole)) fetchStudents() }, [isAuthenticated, activeRole])
 
-  // ── login ────────────────────────────────────────────────────────────────────
   const handleLoginChange = e => setLoginForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
 
   const handleLogin = e => {
@@ -133,7 +124,6 @@ export default function App() {
     }
     setIsAuthenticated(true)
     setActiveRole(loginForm.rol)
-    // Redirigir al tab inicial correcto segun rol
     setActiveTab(isGov(loginForm.rol) ? TAB_INICIO : TAB_PERFIL)
     pushAudit('SESION_INICIO', `${loginForm.rol === 'Estudiante' ? 'Estudiante cedula' : 'Usuario'} ${loginForm.usuario.trim()} inicio sesion como ${loginForm.rol}`)
   }
@@ -147,14 +137,14 @@ export default function App() {
     setActiveTab(TAB_INICIO)
   }
 
-  // ── formulario de expedientes ────────────────────────────────────────────────
   const startEdit = student => {
+    if (!isGov(activeRole)) return
     setEditingId(student.id)
     setEditingRecord(student)
     setForm({
-      nombre:           student.nombre || '',
-      cedula:           student.cedula || '',
-      centroEducativo:  student.centroEducativo || '',
+      nombre:          student.nombre || '',
+      cedula:          student.cedula || '',
+      centroEducativo:   student.centroEducativo || '',
       modalidadAcademica: normalizeModalidad(student.modalidadAcademica),
     })
     setFormError('')
@@ -173,6 +163,7 @@ export default function App() {
 
   const handleSubmit = async e => {
     e.preventDefault()
+    if (!isGov(activeRole)) return
     if (!form.nombre.trim() || !form.cedula.trim() || !form.centroEducativo.trim()) {
       setFormError('Nombre, Cedula y Centro Educativo son obligatorios.')
       return
@@ -193,7 +184,7 @@ export default function App() {
         }
         res = await fetch(`${API_BASE.replace(/\/api$/, '')}/api/ChangeExampleData/${editingId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'X-User-Role': 'Admin' },
+          headers: { 'Content-Type': 'application/json', 'X-User-Role': activeRole },
           body: JSON.stringify(payload),
         })
         pushAudit('ACTUALIZAR', `Usuario [${activeRole}] modifico expediente cedula ${form.cedula.trim()}`)
@@ -207,7 +198,7 @@ export default function App() {
         }
         res = await fetch(`${API_BASE.replace(/\/api$/, '')}/api/CreateExample`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-User-Role': 'Admin' },
+          headers: { 'Content-Type': 'application/json', 'X-User-Role': activeRole },
           body: JSON.stringify(payload),
         })
         pushAudit('CREAR', `Usuario [${activeRole}] creo registro para cedula ${form.cedula.trim()}`)
@@ -226,12 +217,13 @@ export default function App() {
   }
 
   const handleDelete = async id => {
+    if (!isGov(activeRole)) return
     if (!id || deletingId) return
     try {
       setDeletingId(id)
       const res = await fetch(`${API_BASE.replace(/\/api$/, '')}/api/DeleteExample/${id}`, {
         method: 'DELETE',
-        headers: { 'X-User-Role': 'Admin' },
+        headers: { 'X-User-Role': activeRole },
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       pushAudit('ELIMINAR', `Usuario [${activeRole}] elimino expediente id ${id}`)
@@ -243,7 +235,6 @@ export default function App() {
     }
   }
 
-  // ── calculos para vistas ──────────────────────────────────────────────────────
   const kpis = useMemo(() => {
     const total = students.length
     const academica = students.filter(s => normalizeModalidad(s.modalidadAcademica) === MOD_ACADEMICA).length
@@ -273,9 +264,6 @@ export default function App() {
       .sort((a, b) => b.count - a.count)
   }, [students])
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // PANTALLA DE LOGIN
-  // ────────────────────────────────────────────────────────────────────────────
   if (!isAuthenticated) {
     return (
       <div style={pageStyle} className="flex min-h-screen items-center justify-center p-4">
@@ -361,9 +349,6 @@ export default function App() {
     )
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // VISTAS AUTENTICADAS
-  // ────────────────────────────────────────────────────────────────────────────
   const roleColor = ROL_COLORS[activeRole] || ROL_COLORS[ROLES[0]]
 
   return (
@@ -407,88 +392,88 @@ export default function App() {
 
       <main className="mx-auto max-w-7xl space-y-5 px-4 py-6">
 
-        {/* ── FORMULARIO (solo gubernamental, oculto para Estudiante) ── */}
-        <div className={`${card} p-5`} style={{ display: activeTab === TAB_FORMULARIO && isGov(activeRole) ? 'block' : 'none' }}>
-          <h2 className="mb-4 text-base font-semibold text-slate-800">
-            {editingId ? 'Actualizar expediente seleccionado' : 'Agregar nuevo expediente'}
-          </h2>
-          <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <label className="grid gap-1">
-              <span className="text-sm text-slate-600">Nombre completo</span>
-              <input
-                type="text"
-                name="nombre"
-                value={form.nombre}
-                onChange={handleFormChange}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Maria Perez"
-              />
-            </label>
-            <label className="grid gap-1">
-              <span className="text-sm text-slate-600">Cedula</span>
-              <input
-                type="text"
-                name="cedula"
-                value={form.cedula}
-                onChange={handleFormChange}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="000-0000000-0"
-              />
-            </label>
-            <label className="grid gap-1">
-              <span className="text-sm text-slate-600">Centro educativo</span>
-              <input
-                type="text"
-                name="centroEducativo"
-                value={form.centroEducativo}
-                onChange={handleFormChange}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Liceo Union Panamericana"
-              />
-            </label>
-            <label className="grid gap-1">
-              <span className="text-sm text-slate-600">Modalidad</span>
-              <select
-                name="modalidadAcademica"
-                value={form.modalidadAcademica}
-                onChange={handleFormChange}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value={MOD_ACADEMICA}>{MOD_ACADEMICA}</option>
-                <option value={MOD_TECNICO}>{MOD_TECNICO}</option>
-              </select>
-            </label>
-
-            <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
-              {editingId && (
-                <button
-                  type="button"
-                  onClick={cancelEdit}
-                  disabled={submitting}
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700"
+        {/* ── FORMULARIO (solo gubernamental) ── */}
+        {isGov(activeRole) && (
+          <div className={`${card} p-5`} style={{ display: activeTab === TAB_FORMULARIO ? 'block' : 'none' }}>
+            <h2 className="mb-4 text-base font-semibold text-slate-800">
+              {editingId ? 'Actualizar expediente seleccionado' : 'Agregar nuevo expediente'}
+            </h2>
+            <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="grid gap-1">
+                <span className="text-sm text-slate-600">Nombre completo</span>
+                <input
+                  type="text"
+                  name="nombre"
+                  value={form.nombre}
+                  onChange={handleFormChange}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Maria Perez"
+                />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-sm text-slate-600">Cedula</span>
+                <input
+                  type="text"
+                  name="cedula"
+                  value={form.cedula}
+                  onChange={handleFormChange}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="000-0000000-0"
+                />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-sm text-slate-600">Centro educativo</span>
+                <input
+                  type="text"
+                  name="centroEducativo"
+                  value={form.centroEducativo}
+                  onChange={handleFormChange}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Liceo Union Panamericana"
+                />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-sm text-slate-600">Modalidad</span>
+                <select
+                  name="modalidadAcademica"
+                  value={form.modalidadAcademica}
+                  onChange={handleFormChange}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                 >
-                  Cancelar
-                </button>
-              )}
-              <button
-                type="submit"
-                disabled={submitting}
-                style={{ background: roleColor.bg }}
-                className="rounded-lg px-5 py-2 text-sm font-semibold text-white"
-              >
-                {submitting ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Agregar expediente'}
-              </button>
-            </div>
-          </form>
-          {formError && (
-            <p className="mt-2 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{formError}</p>
-          )}
-        </div>
+                  <option value={MOD_ACADEMICA}>{MOD_ACADEMICA}</option>
+                  <option value={MOD_TECNICO}>{MOD_TECNICO}</option>
+                </select>
+              </label>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            VISTA: INICIO
-        ═══════════════════════════════════════════════════════════════════ */}
-        {activeTab === TAB_INICIO && (
+              <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
+                {editingId && (
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    disabled={submitting}
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700"
+                  >
+                    Cancelar
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  style={{ background: roleColor.bg }}
+                  className="rounded-lg px-5 py-2 text-sm font-semibold text-white"
+                >
+                  {submitting ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Agregar expediente'}
+                </button>
+              </div>
+            </form>
+            {formError && (
+              <p className="mt-2 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{formError}</p>
+            )}
+          </div>
+        )}
+
+        {/* ── VISTA: INICIO ── */}
+        {activeTab === TAB_INICIO && isGov(activeRole) && (
           <section className={`${card} p-6 space-y-4`}>
             <div>
               <h2 className="text-xl font-bold text-slate-800">
@@ -496,8 +481,8 @@ export default function App() {
               </h2>
               <p className="mt-1 text-sm text-slate-500">
                 {activeRole === 'Analista MINERD'
-                  ? 'Panel de gestion de expedientes para centros educativos del nivel pre-universitario (Escuelas y Politecnicos) bajo MINERD.'
-                  : 'Panel de gestion de egresados y matriculados en instituciones de educacion superior reguladas por MESCYT.'}
+                  ? 'Panel de gestion de expedientes para centros educativos del nivel pre-universitario bajo MINERD.'
+                  : 'Panel de gestion de egresados y matriculados regulados por MESCYT.'}
               </p>
             </div>
 
@@ -517,16 +502,14 @@ export default function App() {
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-              <p className="mb-1 font-semibold text-slate-700">Fuente de datos:</p>
+              <p className="mb-1 font-semibold text-slate-700">Fuente de datos segura:</p>
               <code className="rounded bg-slate-200 px-2 py-0.5 text-xs">{API_BASE}/AllExampleData</code>
             </div>
           </section>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            VISTA: GESTION DE EXPEDIENTES
-        ═══════════════════════════════════════════════════════════════════ */}
-        {activeTab === TAB_GESTION && (
+        {/* ── VISTA: GESTION DE EXPEDIENTES ── */}
+        {activeTab === TAB_GESTION && isGov(activeRole) && (
           <section className={`${card} p-5 space-y-4`}>
             <h2 className="text-base font-semibold text-slate-800">Gestion de Expedientes</h2>
 
@@ -613,14 +596,11 @@ export default function App() {
           </section>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            VISTA: REPORTES EMPRESARIALES
-        ═══════════════════════════════════════════════════════════════════ */}
-        {activeTab === TAB_REPORTES && (
+        {/* ── VISTA: REPORTES EMPRESARIALES ── */}
+        {activeTab === TAB_REPORTES && isGov(activeRole) && (
           <section className={`${card} p-5 space-y-5`}>
             <h2 className="text-base font-semibold text-slate-800">Reportes Empresariales</h2>
 
-            {/* KPI summary row */}
             <div className="grid gap-4 sm:grid-cols-3">
               <article className="rounded-xl border border-blue-200 bg-blue-50 p-4">
                 <p className="text-xs font-semibold uppercase text-blue-600">Total expedientes</p>
@@ -636,7 +616,6 @@ export default function App() {
               </article>
             </div>
 
-            {/* Barras de rendimiento por modalidad */}
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
               <p className="text-sm font-semibold text-slate-700">Rendimiento de lineas educativas</p>
 
@@ -667,7 +646,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Distribucion por centro */}
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
               <p className="text-sm font-semibold text-slate-700">Distribucion de egresados por centro educativo</p>
               {byCentro.length === 0 && <p className="text-sm text-slate-500">Sin datos disponibles.</p>}
@@ -689,10 +667,8 @@ export default function App() {
           </section>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            VISTA: REGISTRO DE AUDITORIA
-        ═══════════════════════════════════════════════════════════════════ */}
-        {activeTab === TAB_AUDITORIA && (
+        {/* ── VISTA: REGISTRO DE AUDITORIA ── */}
+        {activeTab === TAB_AUDITORIA && isGov(activeRole) && (
           <section className={`${card} p-5 space-y-4`}>
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-slate-800">Registro de Auditoria</h2>
@@ -701,34 +677,27 @@ export default function App() {
               </span>
             </div>
 
-            {auditLogs.length === 0 && (
+            {auditLogs.length === 0 ? (
               <p className="text-sm text-slate-500">No hay eventos registrados en esta sesion.</p>
-            )}
-
-            {auditLogs.length > 0 && (
+            ) : (
               <div className="overflow-x-auto rounded-xl border border-slate-200">
-                <table className="w-full min-w-[720px] border-collapse text-sm">
+                <table className="w-full min-w-[600px] border-collapse text-sm">
                   <thead className="bg-slate-50">
                     <tr>
-                      {['Fecha y hora', 'Usuario / Rol', 'Accion', 'Detalles'].map(h => (
-                        <th key={h} className="border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-700">{h}</th>
-                      ))}
+                      <th className="border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-700">Fecha</th>
+                      <th className="border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-700">Rol</th>
+                      <th className="border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-700">Accion</th>
+                      <th className="border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-700">Detalles</th>
                     </tr>
                   </thead>
                   <tbody>
                     {auditLogs.map(log => (
                       <tr key={log.id} className="hover:bg-slate-50">
-                        <td className="border-b border-slate-100 px-4 py-3 text-slate-500">{fmt(log.fecha)}</td>
+                        <td className="border-b border-slate-100 px-4 py-3 text-xs text-slate-500">{fmt(log.fecha)}</td>
+                        <td className="border-b border-slate-100 px-4 py-3 font-medium text-slate-700">{log.usuario}</td>
                         <td className="border-b border-slate-100 px-4 py-3">
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            log.usuario?.includes('MESCYT')
-                              ? 'bg-teal-100 text-teal-800'
-                              : 'bg-blue-100 text-blue-800'
-                          }`}>
-                            {log.usuario}
-                          </span>
+                          <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-800">{log.accion}</span>
                         </td>
-                        <td className="border-b border-slate-100 px-4 py-3 font-medium">{log.accion}</td>
                         <td className="border-b border-slate-100 px-4 py-3 text-slate-600">{log.detalles}</td>
                       </tr>
                     ))}
@@ -739,167 +708,41 @@ export default function App() {
           </section>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            PORTAL ESTUDIANTIL — MI PERFIL
-        ═══════════════════════════════════════════════════════════════════ */}
-        {activeTab === TAB_PERFIL && (
-          <section className={`${card} p-6 space-y-5`}>
-            <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-violet-100 text-2xl font-bold text-violet-700">
-                {loginForm.usuario.trim().charAt(0).toUpperCase() || 'E'}
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-slate-800">Mi Perfil Estudiantil</h2>
-                <p className="text-sm text-slate-500">Datos de solo lectura del expediente registrado en EDUMETRICS-DR</p>
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              {[
-                { label: 'Nombre completo',   value: 'Ana Sofia Jimenez',           icon: '👤' },
-                { label: 'Cedula',            value: '001-5678901-2',               icon: '🪪' },
-                { label: 'Centro educativo',  value: 'Colegio Santa Teresita',      icon: '🏫' },
-                { label: 'Modalidad',         value: MOD_ACADEMICA,                 icon: '📚' },
-                { label: 'RNE',               value: 'RNE-SEED-005',                icon: '🔖' },
-                { label: 'Estado academico',  value: 'Regular',                     icon: '✅' },
-                { label: 'Tasa de asistencia', value: '92%',                        icon: '📅' },
-                { label: 'Promedio general',   value: '85.4 / 100',                 icon: '🏆' },
-              ].map(item => (
-                <div key={item.label} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="mb-0.5 text-xs font-semibold text-slate-500">{item.icon} {item.label}</p>
-                  <p className="text-sm font-medium text-slate-800">{item.value}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800">
-              <strong>Nota:</strong> Estos datos son gestionados por tu institucion educativa. Para actualizaciones, contacta al administrador MINERD/MESCYT.
+        {/* ── VISTAS ESTUDIANTILES (Mi Perfil, Mi Pensum, Becas) ── */}
+        {activeTab === TAB_PERFIL && !isGov(activeRole) && (
+          <section className={`${card} p-6 space-y-4`}>
+            <h2 className="text-xl font-bold text-slate-800">Mi Perfil Estudiantil</h2>
+            <p className="text-sm text-slate-600">Cedula vinculada: <strong>{loginForm.usuario || 'No especificada'}</strong></p>
+            <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900">
+              <p className="font-semibold">Estado de Matricula: Activo</p>
+              <p className="mt-1 text-xs text-violet-700">Verificado en el sistema centralizado MESCYT / MINERD.</p>
             </div>
           </section>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            PORTAL ESTUDIANTIL — MI PENSUM
-        ═══════════════════════════════════════════════════════════════════ */}
-        {activeTab === TAB_PENSUM && (
-          <section className={`${card} p-6 space-y-6`}>
+        {activeTab === TAB_PENSUM && !isGov(activeRole) && (
+          <section className={`${card} p-6 space-y-4`}>
             <h2 className="text-xl font-bold text-slate-800">Mi Pensum Academico</h2>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div>
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-600">
-                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> Materias Actuales (4to Grado)
-                </h3>
-                <div className="space-y-2">
-                  {[
-                    { materia: 'Matematica Avanzada',       creditos: 4, estado: 'En curso' },
-                    { materia: 'Lengua Espanola',           creditos: 3, estado: 'En curso' },
-                    { materia: 'Ciencias Naturales',        creditos: 3, estado: 'En curso' },
-                    { materia: 'Ciencias Sociales',         creditos: 2, estado: 'En curso' },
-                    { materia: 'Educacion Fisica',          creditos: 2, estado: 'En curso' },
-                    { materia: 'Tecnologia e Informatica',  creditos: 2, estado: 'En curso' },
-                  ].map((m, i) => (
-                    <div key={i} className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5">
-                      <div>
-                        <p className="text-sm font-medium text-slate-800">{m.materia}</p>
-                        <p className="text-xs text-slate-500">{m.creditos} creditos</p>
-                      </div>
-                      <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-xs font-semibold text-emerald-800">{m.estado}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-600">
-                  <span className="inline-block h-2 w-2 rounded-full bg-slate-400" /> Materias Futuras (5to y 6to Grado)
-                </h3>
-                <div className="space-y-2">
-                  {[
-                    { materia: 'Calculo Diferencial',       grado: '5to' },
-                    { materia: 'Fisica General',            grado: '5to' },
-                    { materia: 'Quimica Organica',          grado: '5to' },
-                    { materia: 'Filosofia y Etica',         grado: '6to' },
-                    { materia: 'Proyecto de Grado',         grado: '6to' },
-                    { materia: 'Pasantia Profesional',      grado: '6to' },
-                  ].map((m, i) => (
-                    <div key={i} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 opacity-70">
-                      <div>
-                        <p className="text-sm font-medium text-slate-700">{m.materia}</p>
-                        <p className="text-xs text-slate-400">Grado {m.grado}</p>
-                      </div>
-                      <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">Pendiente</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-              <strong>Progreso academico:</strong> 4 de 6 grados completados — 66% del pensum aprobado.
-              <div className="mt-2 h-3 overflow-hidden rounded-full bg-blue-200">
-                <div className="h-full rounded-full bg-blue-600" style={{ width: '66%' }} />
-              </div>
+            <p className="text-sm text-slate-500">Consulta de asignaturas cursadas y plan de estudio vigente.</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              <p>Plan de estudios cargado correctamente para el período actual.</p>
             </div>
           </section>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            PORTAL ESTUDIANTIL — OPORTUNIDADES Y BECAS
-        ═══════════════════════════════════════════════════════════════════ */}
-        {activeTab === TAB_BECAS && (
-          <section className={`${card} p-6 space-y-5`}>
-            <div>
-              <h2 className="text-xl font-bold text-slate-800">Oportunidades y Becas</h2>
-              <p className="mt-1 text-sm text-slate-500">Beneficios disponibles para estudiantes registrados en la plataforma EDUMETRICS-DR</p>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-3">
-              <article className="flex flex-col rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-blue-50 p-5 shadow-sm">
-                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 text-white text-xl">🎓</div>
-                <h3 className="mb-1 text-base font-bold text-indigo-900">Beca MESCYT Educacion Superior</h3>
-                <p className="mb-3 flex-1 text-xs text-indigo-700">Financiamiento del 100% de la matricula universitaria para egresados del bachillerato en modalidad academica con promedio superior a 80.</p>
-                <div className="mb-3 space-y-1 text-xs text-indigo-800">
-                  <p>✔ Cubre matricula y libros</p>
-                  <p>✔ Estipendio mensual RD$3,000</p>
-                  <p>✔ Renovacion anual automatica</p>
-                </div>
-                <button className="w-full rounded-lg bg-indigo-600 py-2 text-xs font-semibold text-white hover:bg-indigo-700">
-                  Aplicar ahora
-                </button>
-              </article>
-
-              <article className="flex flex-col rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-5 shadow-sm">
-                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white text-xl">🛠</div>
-                <h3 className="mb-1 text-base font-bold text-emerald-900">Pasantia Tecnica INFOTEP</h3>
-                <p className="mb-3 flex-1 text-xs text-emerald-700">Programa de pasantias remuneradas para estudiantes de Modalidad Tecnico Profesional en empresas aliadas del sector industrial y tecnologico.</p>
-                <div className="mb-3 space-y-1 text-xs text-emerald-800">
-                  <p>✔ Duracion: 3 a 6 meses</p>
-                  <p>✔ Remuneracion minima garantizada</p>
-                  <p>✔ Carta de recomendacion oficial</p>
-                </div>
-                <button className="w-full rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700">
-                  Ver vacantes
-                </button>
-              </article>
-
-              <article className="flex flex-col rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-sm">
-                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500 text-white text-xl">🌐</div>
-                <h3 className="mb-1 text-base font-bold text-amber-900">Intercambio Internacional MINERD</h3>
-                <p className="mb-3 flex-1 text-xs text-amber-800">Oportunidad de estudiar un semestre en universidades aliadas de Espana, Mexico o Estados Unidos. Dirigido a estudiantes con promedio superior a 85.</p>
-                <div className="mb-3 space-y-1 text-xs text-amber-800">
-                  <p>✔ Incluye boleto aereo y alojamiento</p>
-                  <p>✔ Reconocimiento de creditos</p>
-                  <p>✔ Convocatoria anual — julio</p>
-                </div>
-                <button className="w-full rounded-lg bg-amber-500 py-2 text-xs font-semibold text-white hover:bg-amber-600">
-                  Conocer requisitos
-                </button>
-              </article>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              Estas oportunidades estan disponibles gracias a tu registro en EDUMETRICS-DR. Para consultas escribe a <strong>becas@minerd.gob.do</strong>.
+        {activeTab === TAB_BECAS && !isGov(activeRole) && (
+          <section className={`${card} p-6 space-y-4`}>
+            <h2 className="text-xl font-bold text-slate-800">Oportunidades y Becas</h2>
+            <p className="text-sm text-slate-500">Programas de becas nacionales e internacionales disponibles.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                <h3 className="font-semibold text-blue-900">Becas Nacionales MESCYT</h3>
+                <p className="mt-1 text-xs text-blue-700">Convocatoria abierta para estudiantes de excelencia.</p>
+              </div>
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <h3 className="font-semibold text-emerald-900">Programa de Ingles de Inmersion</h3>
+                <p className="mt-1 text-xs text-emerald-700">Capacitacion en lenguas extranjeras.</p>
+              </div>
             </div>
           </section>
         )}
