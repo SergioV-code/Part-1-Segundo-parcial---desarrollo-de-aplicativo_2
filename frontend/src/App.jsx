@@ -11,18 +11,19 @@ const API_BASE = normalizedApiUrl
 // ─── HELPER CENTRALIZADO DE PETICIONES HTTP ────────────────────────────────────
 /**
  * apiRequest – wrapper centralizado para todas las llamadas al backend.
- * Maneja automáticamente: URL base, Content-Type, header dinámico de rol.
+ * Maneja automáticamente: URL base, Content-Type, Bearer token y errores semánticos.
  *
  * @param {string} path    – ruta relativa, ej: '/AllExampleData'
- * @param {string} method  – 'GET' | 'POST' | 'PUT' | 'DELETE'
- * @param {string} role    – rol activo del usuario (X-User-Role)
- * @param {object} [body]  – payload para POST / PUT (se serializa a JSON)
+ * @param {object} options
+ * @param {string} options.method  – 'GET' | 'POST' | 'PUT' | 'DELETE'
+ * @param {string} options.token   – JWT Bearer token
+ * @param {object} options.body    – payload para POST / PUT (se serializa a JSON)
  * @returns {Promise<any>} – JSON parseado o null si sin body
  */
-async function apiRequest(path, method = 'GET', role = 'Admin', body = null) {
+async function apiRequest(path, { method = 'GET', token = '', body = null } = {}) {
   const url = `${API_BASE}${path}`
   const headers = {
-    'X-User-Role': role,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(body ? { 'Content-Type': 'application/json' } : {}),
   }
   const res = await fetch(url, {
@@ -30,9 +31,17 @@ async function apiRequest(path, method = 'GET', role = 'Admin', body = null) {
     headers,
     ...(body ? { body: JSON.stringify(body) } : {}),
   })
-  if (!res.ok) throw new Error(`HTTP ${res.status} – ${res.statusText}`)
+
   const text = await res.text()
-  try { return text ? JSON.parse(text) : null } catch { return null }
+  let payload = null
+  try { payload = text ? JSON.parse(text) : null } catch { payload = null }
+
+  if (!res.ok) {
+    const detail = payload?.error || payload?.title || res.statusText || 'Error inesperado'
+    throw new Error(`HTTP ${res.status} - ${detail}`)
+  }
+
+  return payload
 }
 
 // ─── CONSTANTES ───────────────────────────────────────────────────────────────
@@ -53,9 +62,9 @@ const STU_TABS   = [TAB_PERFIL, TAB_PENSUM, TAB_BECAS]
 
 const ROLES = ['Analista MINERD', 'Analista MESCYT', 'Estudiante']
 const ROL_COLORS = {
-  'Analista MINERD': { bg: '#1d4ed8', badge: 'bg-blue-100 text-blue-800' },
-  'Analista MESCYT': { bg: '#0f766e', badge: 'bg-teal-100 text-teal-800' },
-  'Estudiante':      { bg: '#7c3aed', badge: 'bg-violet-100 text-violet-800' },
+  'Analista MINERD': { bg: '#0f3a7a', badge: 'bg-blue-100 text-blue-900' },
+  'Analista MESCYT': { bg: '#075985', badge: 'bg-cyan-100 text-cyan-900' },
+  'Estudiante':      { bg: '#166534', badge: 'bg-emerald-100 text-emerald-900' },
 }
 
 const isGov = rol => rol === 'Analista MINERD' || rol === 'Analista MESCYT'
@@ -136,9 +145,9 @@ function fmtDate(isoString) {
 // ─── ESTILOS BASE ─────────────────────────────────────────────────────────────
 const pageStyle = {
   minHeight: '100vh',
-  background: 'linear-gradient(145deg,#f0f4ff 0%,#e8f4ff 50%,#f0fff8 100%)',
-  fontFamily: 'Segoe UI, system-ui, sans-serif',
-  color: '#0f172a',
+  background: 'radial-gradient(circle at top left,#eff6ff 0%,#f8fafc 45%,#ecfeff 100%)',
+  fontFamily: 'Manrope, Segoe UI, system-ui, sans-serif',
+  color: '#0b1220',
 }
 const card = 'bg-white border border-slate-200 rounded-2xl shadow-sm'
 
@@ -183,6 +192,7 @@ function EstadoBadge({ estado }) {
 export default function App() {
   // Auth / sesión
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [authToken, setAuthToken]             = useState('')
   const [activeRole, setActiveRole]           = useState(ROLES[0])
   const [loginForm, setLoginForm]             = useState({ usuario: '', contrasena: '', rol: ROLES[0] })
   const [loginError, setLoginError]           = useState('')
@@ -211,6 +221,7 @@ export default function App() {
 
   // Auditoría
   const [auditLogs, setAuditLogs] = useState([])
+  const [studentProfileData, setStudentProfileData] = useState(null)
 
   // ── Auditoría helper ────────────────────────────────────────────────────────
   const pushAudit = useCallback((accion, detalles, rol) =>
@@ -223,11 +234,11 @@ export default function App() {
     }, ...prev]), [])
 
   // ── Fetch de estudiantes ────────────────────────────────────────────────────
-  const fetchStudents = useCallback(async (rol) => {
+  const fetchStudents = useCallback(async token => {
     try {
       setLoading(true)
       setDataError('')
-      const raw = await apiRequest('/AllExampleData', 'GET', rol)
+      const raw = await apiRequest('/AllExampleData', { method: 'GET', token })
       setStudents(Array.isArray(raw)
         ? raw.map(s => ({ ...s, modalidadAcademica: normalizeModalidad(s?.modalidadAcademica) }))
         : [])
@@ -239,14 +250,31 @@ export default function App() {
     }
   }, [])
 
+  const fetchStudentProfile = useCallback(async token => {
+    try {
+      const profile = await apiRequest('/student/profile', { method: 'GET', token })
+      setStudentProfileData(profile)
+    } catch {
+      setStudentProfileData(null)
+    }
+  }, [])
+
   useEffect(() => {
-    if (isAuthenticated) fetchStudents(activeRole)
-  }, [isAuthenticated, activeRole, fetchStudents])
+    if (!isAuthenticated || !authToken) return
+    if (isGov(activeRole)) {
+      fetchStudents(authToken)
+    } else {
+      fetchStudentProfile(authToken)
+    }
+  }, [isAuthenticated, authToken, activeRole, fetchStudents, fetchStudentProfile])
 
   // ── Login ───────────────────────────────────────────────────────────────────
-  const handleLoginChange = e => setLoginForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
+  const handleLoginChange = e => {
+    setLoginForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
+    setLoginError('')
+  }
 
-  const handleLogin = e => {
+  const handleLogin = async e => {
     e.preventDefault()
     const esEstudiante = loginForm.rol === 'Estudiante'
     if (!loginForm.usuario.trim() || (!loginForm.contrasena.trim() && !esEstudiante)) {
@@ -255,22 +283,52 @@ export default function App() {
         : 'Ingresa usuario y contraseña para continuar.')
       return
     }
-    const rol = loginForm.rol
-    setIsAuthenticated(true)
-    setActiveRole(rol)
-    setActiveTab(isGov(rol) ? TAB_INICIO : TAB_PERFIL)
-    pushAudit(
-      'SESION_INICIO',
-      `${esEstudiante ? 'Estudiante cédula' : 'Usuario'} ${loginForm.usuario.trim()} inició sesión como ${rol}`,
-      rol,
-    )
+
+    try {
+      setLoginError('')
+      let response
+      if (esEstudiante) {
+        response = await apiRequest('/Auth/login/estudiante', {
+          method: 'POST',
+          body: { cedula: loginForm.usuario.trim() },
+        })
+      } else {
+        response = await apiRequest('/Auth/login/analista', {
+          method: 'POST',
+          body: {
+            rol: loginForm.rol,
+            correoInstitucional: loginForm.usuario.trim(),
+            password: loginForm.contrasena,
+          },
+        })
+      }
+
+      if (!response?.token) {
+        throw new Error('No se recibió token de autenticación.')
+      }
+
+      const rol = response.rol || loginForm.rol
+      setAuthToken(response.token)
+      setIsAuthenticated(true)
+      setActiveRole(rol)
+      setActiveTab(isGov(rol) ? TAB_INICIO : TAB_PERFIL)
+      pushAudit(
+        'SESION_INICIO',
+        `${esEstudiante ? 'Estudiante cédula' : 'Usuario'} ${loginForm.usuario.trim()} inició sesión como ${rol}`,
+        rol,
+      )
+    } catch (error) {
+      setLoginError(error.message || 'No fue posible iniciar sesión.')
+    }
   }
 
   const handleLogout = () => {
     setIsAuthenticated(false)
     setLoginForm({ usuario: '', contrasena: '', rol: ROLES[0] })
     setLoginError('')
+    setAuthToken('')
     setStudents([])
+    setStudentProfileData(null)
     setAuditLogs([])
     setActiveTab(TAB_INICIO)
     cancelEdit()
@@ -322,7 +380,7 @@ export default function App() {
           modalidadAcademica: normalizeModalidad(form.modalidadAcademica),
           fechaActualizacion: new Date().toISOString(),
         }
-        await apiRequest(`/ChangeExampleData/${editingId}`, 'PUT', activeRole, payload)
+        await apiRequest(`/ChangeExampleData/${editingId}`, { method: 'PUT', token: authToken, body: payload })
         pushAudit('ACTUALIZAR', `Usuario [${activeRole}] modificó expediente cédula ${form.cedula.trim()}`, activeRole)
         setFormSuccess('Expediente actualizado correctamente.')
       } else {
@@ -333,13 +391,13 @@ export default function App() {
           modalidadAcademica: normalizeModalidad(form.modalidadAcademica),
           rne:                `RNE-${Date.now()}`,
         }
-        await apiRequest('/CreateExample', 'POST', activeRole, payload)
+        await apiRequest('/CreateExample', { method: 'POST', token: authToken, body: payload })
         pushAudit('CREAR', `Usuario [${activeRole}] creó registro para cédula ${form.cedula.trim()}`, activeRole)
         setFormSuccess('Expediente registrado correctamente.')
       }
 
       cancelEdit()
-      await fetchStudents(activeRole)
+      await fetchStudents(authToken)
     } catch (e) {
       setFormError(e.message || 'No se pudo completar la operación.')
     } finally {
@@ -352,9 +410,9 @@ export default function App() {
     if (!window.confirm('¿Seguro que deseas eliminar este expediente? Esta acción no se puede deshacer.')) return
     try {
       setDeletingId(id)
-      await apiRequest(`/DeleteExample/${id}`, 'DELETE', activeRole)
+      await apiRequest(`/DeleteExample/${id}`, { method: 'DELETE', token: authToken })
       pushAudit('ELIMINAR', `Usuario [${activeRole}] eliminó expediente id ${id}`, activeRole)
-      await fetchStudents(activeRole)
+      await fetchStudents(authToken)
     } catch (e) {
       setFormError(`No se pudo eliminar: ${e.message || 'Error desconocido'}`)
       setActiveTab(TAB_FORMULARIO)
@@ -396,10 +454,13 @@ export default function App() {
 
   const studentProfile = useMemo(() => {
     if (isGov(activeRole)) return null
+    if (studentProfileData) {
+      return { ...studentProfileData, modalidadAcademica: normalizeModalidad(studentProfileData.modalidadAcademica) }
+    }
     const cedula = loginForm.usuario.trim()
     return students.find(s => (s.cedula || '').replace(/-/g, '') === cedula.replace(/-/g, ''))
       || { nombre: `Estudiante ${cedula}`, cedula, centroEducativo: '—', modalidadAcademica: MOD_ACADEMICA }
-  }, [students, loginForm.usuario, activeRole])
+  }, [students, studentProfileData, loginForm.usuario, activeRole])
 
   const pensumStats = useMemo(() => {
     const aprobadas = DEMO_PENSUM.filter(m => m.estado === 'Aprobada').length
@@ -451,7 +512,7 @@ export default function App() {
                   autoComplete="username"
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
                 />
-                <p className="mt-1 text-xs text-slate-400">Ingresa tu cédula para acceder al portal estudiantil.</p>
+                <p className="mt-1 text-xs text-slate-600">Ingresa tu cédula para acceder al portal estudiantil.</p>
               </div>
             ) : (
               <>
@@ -496,7 +557,7 @@ export default function App() {
             </button>
           </form>
 
-          <p className="mt-4 text-center text-xs text-slate-400">
+          <p className="mt-4 text-center text-xs text-slate-600">
             Acceso restringido — Gobierno y estudiantes autorizados.
           </p>
         </div>
@@ -644,8 +705,8 @@ export default function App() {
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
               <p className="mb-1 font-semibold text-slate-700">Endpoint activo:</p>
               <code className="rounded bg-slate-200 px-2 py-0.5 text-xs break-all">{API_BASE}/AllExampleData</code>
-              <p className="mt-1 text-xs text-slate-400">
-                Rol enviado en cabecera: <code className="bg-slate-200 px-1 rounded">{activeRole}</code>
+              <p className="mt-1 text-xs text-slate-600">
+                Seguridad activa con token JWT Bearer y rol: <code className="bg-slate-200 px-1 rounded">{activeRole}</code>
               </p>
             </div>
           </section>
@@ -947,7 +1008,7 @@ export default function App() {
                       <td className="px-4 py-3 text-center">
                         {mat.nota !== null
                           ? <span className={`font-bold ${mat.nota >= 90 ? 'text-emerald-700' : mat.nota >= 70 ? 'text-blue-700' : 'text-rose-700'}`}>{mat.nota}</span>
-                          : <span className="text-slate-400">—</span>
+                          : <span className="text-slate-500">—</span>
                         }
                       </td>
                     </tr>
@@ -997,7 +1058,7 @@ export default function App() {
                 </article>
               ))}
             </div>
-            <p className="text-xs text-center text-slate-400 pb-2">
+            <p className="text-xs text-center text-slate-600 pb-2">
               La información de becas es referencial. Consulta los portales oficiales para datos actualizados.
             </p>
           </section>

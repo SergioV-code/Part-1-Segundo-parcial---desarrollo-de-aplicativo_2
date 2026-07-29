@@ -1,33 +1,24 @@
-using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
+using System.ComponentModel.DataAnnotations;
 
 namespace EDUMETRICS_DR.Models
 {
     public class AuditLog
     {
-        [BsonId]
-        [BsonRepresentation(BsonType.ObjectId)]
-        public string? Id { get; set; }
+        [Key]
+        public int Id { get; set; }
 
-        [BsonElement("accion")]
-        public string Accion { get; set; } = string.Empty;
+        public DateTime FechaHora { get; set; } = DateTime.UtcNow;
 
-        [BsonElement("entidad")]
-        public string Entidad { get; set; } = string.Empty;
-
-        [BsonElement("detalles")]
-        public string Detalles { get; set; } = string.Empty;
-
-        [BsonElement("fecha")]
-        public DateTime Fecha { get; set; } = DateTime.UtcNow;
-
-        [BsonElement("timestamp")]
-        public long Timestamp { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-
-        [BsonElement("usuario")]
+        [MaxLength(200)]
         public string Usuario { get; set; } = string.Empty;
 
-        [BsonElement("rolUsuario")]
-        public string RolUsuario { get; set; } = string.Empty;
+        [MaxLength(50)]
+        public string Rol { get; set; } = string.Empty;
+
+        [MaxLength(100)]
+        public string Accion { get; set; } = string.Empty;
+
+        [MaxLength(4000)]
+        public string Detalles { get; set; } = string.Empty;
     }
 }

@@ -1,155 +1,158 @@
-using MongoDB.Driver;
-using EDUMETRICS_DR.Models;
+using System.Text;
 using EDUMETRICS_DR.Data;
+using EDUMETRICS_DR.Models;
 using EDUMETRICS_DR.Services;
+using EDUMETRICS_DR.Filters;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ==================== MongoDbSettings DI ====================
-builder.Services.Configure<MongoDbSettings>(
-    builder.Configuration.GetSection("MongoDbSettings"));
+var sqlConnection =
+    Environment.GetEnvironmentVariable("SQLSERVER_CONNECTION_STRING")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
-// ==================== MONGODB CONFIGURATION ====================
-var configuredConnectionString = builder.Configuration["MongoDB:ConnectionString"];
-var configuredDatabaseName = builder.Configuration["MongoDB:DatabaseName"];
-
-var databaseUrl = Environment.GetEnvironmentVariable("MONGODB_URI");
-if (string.IsNullOrWhiteSpace(databaseUrl))
+if (string.IsNullOrWhiteSpace(sqlConnection))
 {
-    if (!string.IsNullOrWhiteSpace(configuredConnectionString) && !string.IsNullOrWhiteSpace(configuredDatabaseName))
-    {
-        databaseUrl = $"{configuredConnectionString.TrimEnd('/')}/{configuredDatabaseName}";
-    }
-    else if (!string.IsNullOrWhiteSpace(configuredConnectionString))
-    {
-        databaseUrl = configuredConnectionString;
-    }
-    else
-    {
-        databaseUrl = "mongodb://localhost:27017/edumetrics";
-    }
+    throw new InvalidOperationException("No se encontró SQLSERVER_CONNECTION_STRING ni ConnectionStrings:DefaultConnection.");
 }
 
-var mongoUrl = new MongoUrl(databaseUrl);
-var mongoClient = new MongoClient(mongoUrl);
-var databaseName = string.IsNullOrWhiteSpace(mongoUrl.DatabaseName) ? "edumetrics" : mongoUrl.DatabaseName;
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
+                 ?? throw new InvalidOperationException("La sección Jwt es obligatoria en la configuración.");
 
-builder.Services.AddSingleton<IMongoClient>(mongoClient);
-builder.Services.AddSingleton<IMongoDatabase>(sp =>
+if (string.IsNullOrWhiteSpace(jwtOptions.Key) || jwtOptions.Key.Length < 32)
 {
-    var client = sp.GetRequiredService<IMongoClient>();
-    return client.GetDatabase(databaseName);
-});
+    throw new InvalidOperationException("Jwt:Key debe existir y tener al menos 32 caracteres.");
+}
 
-// Register IMongoCollection<Student> with automatic index creation
-builder.Services.AddSingleton<IMongoCollection<Student>>(sp =>
-{
-    var database = sp.GetRequiredService<IMongoDatabase>();
-    var collection = database.GetCollection<Student>("students");
-    
-    // Create index on Rne field for better query performance
-    var indexModel = new CreateIndexModel<Student>(
-        Builders<Student>.IndexKeys.Ascending(s => s.Rne)
-    );
+builder.Services.AddDbContext<SchoolContext>(options =>
+    options.UseSqlServer(sqlConnection));
 
-    try
+builder.Services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
+builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<StudentService>();
+builder.Services.AddScoped<AuditActionFilter>();
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
     {
-        collection.Indexes.CreateOne(indexModel);
-    }
-    catch
-    {
-        // Si MongoDB no esta disponible al iniciar, evitamos romper la inyeccion de dependencias.
-        // El controlador devolvera un 500 controlado cuando intente consultar datos.
-    }
-    
-    return collection;
-});
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidAudience = jwtOptions.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
+            RoleClaimType = ClaimTypes.Role,
+            ClockSkew = TimeSpan.Zero
+        };
+    });
 
-builder.Services.AddSingleton<IMongoCollection<AuditLog>>(sp =>
-{
-    var database = sp.GetRequiredService<IMongoDatabase>();
-    return database.GetCollection<AuditLog>("AuditLogs");
-});
+builder.Services.AddAuthorization();
 
-// ==================== SERVICES ====================
-builder.Services.AddSingleton<StudentService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
+builder.Services.AddSwaggerGen(options =>
 {
-    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    options.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "EDUMETRICS-DR API",
-        Version = "v1.0",
-        Description = "API de Telemetría Educativa Dominicana - Plataforma integrada MINERD-MESCYT",
-        Contact = new Microsoft.OpenApi.Models.OpenApiContact
+        Version = "v1",
+        Description = "API con autenticación JWT, RBAC y auditoría para EDUMETRICS-DR"
+    });
+
+    var jwtSecurityScheme = new OpenApiSecurityScheme
+    {
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Description = "Header Authorization usando Bearer token.",
+        Reference = new OpenApiReference
         {
-            Name = "EDUMETRICS-DR Team",
-            Email = "info@edumetrics-dr.gov.do"
+            Id = JwtBearerDefaults.AuthenticationScheme,
+            Type = ReferenceType.SecurityScheme
         }
+    };
+
+    options.AddSecurityDefinition(jwtSecurityScheme.Reference.Id, jwtSecurityScheme);
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        { jwtSecurityScheme, Array.Empty<string>() }
     });
 });
 
-// ==================== CORS CONFIGURATION ====================
-// Política global abierta — permite cualquier origen para que el frontend consuma la API sin bloqueos.
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
-        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
-});
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        var configuredOrigins =
+            Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS")
+            ?? builder.Configuration["Cors:AllowedOrigins"];
 
-// ==================== LOGGING ====================
-builder.Services.AddLogging(options =>
-{
-    options.AddConsole();
-    options.AddDebug();
+        if (string.IsNullOrWhiteSpace(configuredOrigins))
+        {
+            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+            return;
+        }
+
+        var origins = configuredOrigins
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        policy.WithOrigins(origins)
+            .AllowAnyMethod()
+            .AllowAnyHeader();
+    });
 });
 
 var app = builder.Build();
 
-// ── Ejecutar seed automático al arrancar ──────────────────────────────────────
-using (var scope = app.Services.CreateScope())
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(port))
 {
-    try
-    {
-        scope.ServiceProvider.GetRequiredService<StudentService>();
-    }
-    catch (Exception ex)
-    {
-        var startupLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        startupLogger.LogWarning("Seed omitido: {Message}", ex.Message);
-    }
+    app.Urls.Add($"http://0.0.0.0:{port}");
 }
 
-// ==================== MIDDLEWARE ====================
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
+
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<SchoolContext>();
+    context.Database.EnsureCreated();
+
+    var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+    await AppDbSeeder.SeedAsync(context, passwordHasher);
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "EDUMETRICS-DR API v1.0");
-        c.RoutePrefix = string.Empty;
-    });
+    app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
-
-// Custom logging middleware for API calls
-app.Use(async (context, next) =>
+if (!app.Environment.IsProduction())
 {
-    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-    var path = context.Request.Path.Value;
-    
-    if (path?.StartsWith("/api") == true)
-    {
-        logger.LogInformation($"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] {context.Request.Method} {path}");
-    }
-    
-    await next();
-});
+    app.UseHttpsRedirection();
+}
 
-app.UseCors("AllowAll");
+app.UseCors("AllowFrontend");
+
+app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();

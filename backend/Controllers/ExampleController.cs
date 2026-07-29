@@ -1,434 +1,97 @@
-using Microsoft.AspNetCore.Mvc;
-using MongoDB.Bson;
-using MongoDB.Driver;
+using System.Security.Claims;
+using EDUMETRICS_DR.Filters;
 using EDUMETRICS_DR.Models;
-using Estudiante = EDUMETRICS_DR.Models.Student;
+using EDUMETRICS_DR.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
-namespace EDUMETRICS_DR.Controllers
+namespace EDUMETRICS_DR.Controllers;
+
+[ApiController]
+[Route("api")]
+public class ExampleController : ControllerBase
 {
-    /// <summary>
-    /// Controlador REST API para gestión de estudiantes y expedientes educativos
-    /// Proporciona operaciones CRUD completas para el sistema EDUMETRICS-DR
-    /// </summary>
-    [ApiController]
-    [Route("api")]
-    public class ExampleController : ControllerBase
+    private readonly StudentService _studentService;
+
+    public ExampleController(StudentService studentService)
     {
-        private static readonly string[] CentrosEducativos =
-        {
-            "Liceo Unión Panamericana",
-            "Politécnico Loyola",
-            "Colegio Santa Teresita"
-        };
+        _studentService = studentService;
+    }
 
-        private static readonly string[] ModalidadesAcademicas =
-        {
-            "Modalidad Académica",
-            "Modalidad Técnico Profesional"
-        };
+    [HttpGet("AllExampleData")]
+    [Authorize(Roles = "Analista MINERD,Analista MESCYT")]
+    public async Task<ActionResult<IEnumerable<Student>>> GetAllData(CancellationToken cancellationToken)
+    {
+        var students = await _studentService.GetAllAsync(cancellationToken);
+        return Ok(students);
+    }
 
-        private static readonly string[] Nombres =
+    [HttpPost("CreateExample")]
+    [Authorize(Roles = "Analista MINERD,Analista MESCYT")]
+    [ServiceFilter(typeof(AuditActionFilter))]
+    [AuditAction("CREAR_EXPEDIENTE")]
+    public async Task<IActionResult> CreateExample([FromBody] Student nuevoEstudiante, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
         {
-            "Ana", "Luis", "María", "Carlos", "Sofía", "José", "Camila", "Miguel", "Valentina", "Andrés",
-            "Paola", "Diego", "Gabriela", "Raúl", "Daniela", "Francisco", "Isabella", "Javier", "Renata", "Pedro"
-        };
-
-        private static readonly string[] Apellidos =
-        {
-            "García", "Rodríguez", "Pérez", "Hernández", "López", "Martínez", "Sánchez", "Ramírez", "Torres", "Díaz",
-            "Castillo", "Fernández", "Mejía", "Núñez", "Vargas", "Almonte", "Reyes", "Méndez", "Santana", "Peralta"
-        };
-
-        private readonly IMongoCollection<Student> _studentCollection;
-        private readonly IMongoCollection<Estudiante> _dbCollection;
-        private readonly IMongoCollection<AuditLog> _auditLogCollection;
-        private readonly ILogger<ExampleController> _logger;
-
-        public ExampleController(
-            IMongoCollection<Student> studentCollection,
-            IMongoCollection<AuditLog> auditLogCollection,
-            ILogger<ExampleController> logger)
-        {
-            _studentCollection = studentCollection ?? throw new ArgumentNullException(nameof(studentCollection));
-            _dbCollection = studentCollection;
-            _auditLogCollection = auditLogCollection ?? throw new ArgumentNullException(nameof(auditLogCollection));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            return ValidationProblem(ModelState);
         }
 
-        private async Task RegistrarAuditoriaAsync(string accion, string entidad, string detalles, string rolUsuario)
+        var created = await _studentService.CreateAsync(nuevoEstudiante, cancellationToken);
+        return CreatedAtAction(nameof(GetAllData), new { id = created.Id }, created);
+    }
+
+    [HttpPut("ChangeExampleData/{id:int}")]
+    [Authorize(Roles = "Analista MINERD,Analista MESCYT")]
+    [ServiceFilter(typeof(AuditActionFilter))]
+    [AuditAction("EDITAR_EXPEDIENTE")]
+    public async Task<IActionResult> PutChangeExampleData(int id, [FromBody] Student student, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
         {
-            await _auditLogCollection.InsertOneAsync(new AuditLog
-            {
-                Accion = accion,
-                Entidad = entidad,
-                Detalles = detalles,
-                RolUsuario = rolUsuario,
-                Fecha = DateTime.UtcNow,
-                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-            });
+            return ValidationProblem(ModelState);
         }
 
-        private static string GenerarCedula(Random random)
+        var updated = await _studentService.UpdateAsync(id, student, cancellationToken);
+        if (!updated)
         {
-            return $"{random.Next(0, 1000):000}-{random.Next(0, 10000000):0000000}-{random.Next(0, 10)}";
+            return NotFound(new { error = "Estudiante no encontrado" });
         }
 
-        private static List<Student> GenerarEstudiantesSeed(int cantidad)
+        return NoContent();
+    }
+
+    [HttpDelete("DeleteExample/{id:int}")]
+    [Authorize(Roles = "Analista MINERD,Analista MESCYT")]
+    [ServiceFilter(typeof(AuditActionFilter))]
+    [AuditAction("ELIMINAR_EXPEDIENTE")]
+    public async Task<IActionResult> DeleteExample(int id, CancellationToken cancellationToken)
+    {
+        var deleted = await _studentService.DeleteAsync(id, cancellationToken);
+        if (!deleted)
         {
-            var random = new Random();
-            var estudiantes = new List<Student>(cantidad);
-
-            for (var i = 0; i < cantidad; i++)
-            {
-                var nombre = Nombres[random.Next(Nombres.Length)];
-                var apellido1 = Apellidos[random.Next(Apellidos.Length)];
-                var apellido2 = Apellidos[random.Next(Apellidos.Length)];
-                var centro = CentrosEducativos[random.Next(CentrosEducativos.Length)];
-                var modalidad = ModalidadesAcademicas[random.Next(ModalidadesAcademicas.Length)];
-
-                estudiantes.Add(new Student
-                {
-                    Id = ObjectId.GenerateNewId().ToString(),
-                    Nombre = $"{nombre} {apellido1} {apellido2}",
-                    Cedula = GenerarCedula(random),
-                    Rne = $"RNE-SEED-{DateTime.UtcNow:yyyyMMdd}-{(i + 1):000}",
-                    CentroEducativo = centro,
-                    ModalidadAcademica = modalidad,
-                    DistritoEducativo = $"{random.Next(1, 19):00}-{random.Next(1, 6):00}",
-                    Estado = "Regular",
-                    TasaAsistencia = Math.Round(random.NextDouble() * 20 + 80, 2),
-                    PromedioGeneral = Math.Round(random.NextDouble() * 25 + 70, 2),
-                    EstadoBecaMescyt = "No Aplica",
-                    ProtocoloArquitectura = "Sincronización pendiente",
-                    FechaCreacion = DateTime.UtcNow,
-                    FechaActualizacion = DateTime.UtcNow
-                });
-            }
-
-            return estudiantes;
+            return NotFound(new { error = "Estudiante no encontrado" });
         }
 
-        /// <summary>
-        /// GET /api/AllExampleData
-        /// Obtiene la lista completa de todos los estudiantes registrados
-        /// </summary>
-        /// <returns>Lista de estudiantes</returns>
-        [HttpGet("AllExampleData")]
-        public async Task<ActionResult<IEnumerable<Student>>> GetAllData()
-        {
-            try
-            {
-                var userRole = Request.Headers["X-User-Role"].ToString();
-                if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase) &&
-                    !string.Equals(userRole, "Consultor", StringComparison.OrdinalIgnoreCase))
-                {
-                    return StatusCode(403, new { error = "Acceso denegado para este rol" });
-                }
+        return NoContent();
+    }
 
-                _logger.LogInformation("[API] GET /api/AllExampleData - Obteniendo todos los estudiantes");
-                var students = await _studentCollection.Find(_ => true).ToListAsync();
-                return Ok(students);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"[API] Error al obtener estudiantes: {ex.Message}");
-                return StatusCode(500, new { error = "Error al obtener estudiantes" });
-            }
+    [HttpGet("student/profile")]
+    [Authorize(Roles = SystemRoles.Estudiante)]
+    public async Task<IActionResult> GetStudentProfile(CancellationToken cancellationToken)
+    {
+        var cedula = User.FindFirstValue("cedula");
+        if (string.IsNullOrWhiteSpace(cedula))
+        {
+            return Unauthorized(new { error = "Token de estudiante sin cédula" });
         }
 
-        /// <summary>
-        /// POST /api/CreateExample
-        /// Crea un nuevo registro de estudiante
-        /// </summary>
-        /// <param name="student">Datos del nuevo estudiante</param>
-        /// <returns>Estudiante creado con su ID</returns>
-        [HttpPost("CreateExample")]
-        public async Task<IActionResult> CreateExample([FromBody] Estudiante nuevoEstudiante)
+        var student = await _studentService.GetByCedulaAsync(cedula, cancellationToken);
+        if (student is null)
         {
-            try
-            {
-                var userRole = Request.Headers["X-User-Role"].ToString();
-                if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
-                {
-                    return StatusCode(403, new { error = "Acceso denegado para este rol" });
-                }
-
-                if (nuevoEstudiante == null)
-                    return BadRequest(new { error = "El cuerpo de la solicitud es inválido" });
-
-                if (!ModelState.IsValid)
-                    return BadRequest(ModelState);
-
-                if (string.IsNullOrWhiteSpace(nuevoEstudiante.Nombre))
-                    return BadRequest(new { error = "El nombre del estudiante es requerido" });
-
-                if (string.IsNullOrWhiteSpace(nuevoEstudiante.Cedula))
-                    return BadRequest(new { error = "La cédula del estudiante es requerida" });
-
-                if (string.IsNullOrWhiteSpace(nuevoEstudiante.CentroEducativo))
-                    return BadRequest(new { error = "El centro educativo es requerido" });
-
-                if (string.IsNullOrWhiteSpace(nuevoEstudiante.Rne))
-                    return BadRequest(new { error = "El RNE es requerido" });
-
-                nuevoEstudiante.Id = ObjectId.GenerateNewId().ToString();
-                nuevoEstudiante.FechaCreacion = DateTime.UtcNow;
-                nuevoEstudiante.FechaActualizacion = DateTime.UtcNow;
-
-                await _dbCollection.InsertOneAsync(nuevoEstudiante);
-                await RegistrarAuditoriaAsync(
-                    "POST",
-                    "Estudiante",
-                    $"Estudiante creado: {nuevoEstudiante.Id} - {nuevoEstudiante.Nombre}",
-                    userRole
-                );
-
-                _logger.LogInformation($"[API] POST /api/CreateExample - Estudiante creado: {nuevoEstudiante.Id}");
-                return CreatedAtAction(nameof(GetAllData), new { id = nuevoEstudiante.Id }, nuevoEstudiante);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"[API] Error al crear estudiante: {ex.Message}");
-                return StatusCode(500, new { error = "Error al crear el estudiante" });
-            }
+            return NotFound(new { error = "Perfil académico no encontrado" });
         }
 
-        /// <summary>
-        /// PUT /api/ChangeExampleData/{id}
-        /// Reemplaza completamente un registro de estudiante existente
-        /// </summary>
-        /// <param name="id">ID de MongoDB del estudiante</param>
-        /// <param name="student">Datos completos del estudiante actualizado</param>
-        /// <returns>204 No Content si es exitoso</returns>
-        [HttpPut("ChangeExampleData/{id}")]
-        public async Task<IActionResult> PutChangeExampleData(string id, [FromBody] Student student)
-        {
-            try
-            {
-                var userRole = Request.Headers["X-User-Role"].ToString();
-                if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
-                {
-                    return StatusCode(403, new { error = "Acceso denegado para este rol" });
-                }
-
-                if (!ObjectId.TryParse(id, out _))
-                    return BadRequest(new { error = "ID inválido" });
-
-                if (student == null)
-                    return BadRequest(new { error = "El cuerpo de la solicitud es inválido" });
-
-                student.Id = id;
-                student.FechaActualizacion = DateTime.UtcNow;
-
-                var result = await _studentCollection.ReplaceOneAsync(
-                    Builders<Student>.Filter.Eq(s => s.Id, id),
-                    student
-                );
-
-                if (result.MatchedCount == 0)
-                    return NotFound(new { error = "Estudiante no encontrado" });
-
-                await RegistrarAuditoriaAsync(
-                    "PUT",
-                    "Estudiante",
-                    $"Estudiante actualizado (reemplazo completo): {id}",
-                    userRole
-                );
-
-                _logger.LogInformation($"[API] PUT /api/ChangeExampleData/{id} - Estudiante actualizado");
-                return NoContent();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"[API] Error al actualizar estudiante: {ex.Message}");
-                return StatusCode(500, new { error = "Error al actualizar el estudiante" });
-            }
-        }
-
-        /// <summary>
-        /// DELETE /api/DeleteExample/{id}
-        /// Elimina un registro de estudiante
-        /// </summary>
-        /// <param name="id">ID de MongoDB del estudiante</param>
-        /// <returns>204 No Content si es exitoso</returns>
-        [HttpDelete("DeleteExample/{id}")]
-        public async Task<IActionResult> DeleteExample(string id)
-        {
-            try
-            {
-                var userRole = Request.Headers["X-User-Role"].ToString();
-                if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
-                {
-                    return StatusCode(403, new { error = "Acceso denegado para este rol" });
-                }
-
-                if (!ObjectId.TryParse(id, out _))
-                    return BadRequest(new { error = "ID inválido" });
-
-                var result = await _dbCollection.DeleteOneAsync(x => x.Id == id);
-
-                if (result.DeletedCount == 0)
-                    return NotFound();
-
-                await RegistrarAuditoriaAsync(
-                    "DELETE",
-                    "Estudiante",
-                    $"Estudiante eliminado: {id}",
-                    userRole
-                );
-
-                _logger.LogInformation($"[API] DELETE /api/DeleteExample/{id} - Estudiante eliminado");
-                return NoContent();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"[API] Error al eliminar estudiante: {ex.Message}");
-                return StatusCode(500, new { error = "Error al eliminar el estudiante" });
-            }
-        }
-
-        /// <summary>
-        /// PATCH /api/PatchExampleData/{id}
-        /// Actualiza parcialmente un registro de estudiante (solo los campos proporcionados)
-        /// </summary>
-        /// <param name="id">ID de MongoDB del estudiante</param>
-        /// <param name="updates">Diccionario con los campos a actualizar</param>
-        /// <returns>Estudiante actualizado</returns>
-        [HttpPatch("PatchExampleData/{id}")]
-        public async Task<ActionResult<Student>> PatchPatchExampleData(string id, [FromBody] Dictionary<string, object> updates)
-        {
-            try
-            {
-                var userRole = Request.Headers["X-User-Role"].ToString();
-                if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
-                {
-                    return StatusCode(403, new { error = "Acceso denegado para este rol" });
-                }
-
-                if (!ObjectId.TryParse(id, out _))
-                    return BadRequest(new { error = "ID inválido" });
-
-                if (updates == null || updates.Count == 0)
-                    return BadRequest(new { error = "No hay campos para actualizar" });
-
-                // Construir el update dinámicamente basado en los campos proporcionados
-                var updateBuilder = Builders<Student>.Update;
-                var updateDefinition = updateBuilder.Set(s => s.FechaActualizacion, DateTime.UtcNow);
-
-                foreach (var kvp in updates)
-                {
-                    var key = kvp.Key;
-                    var value = kvp.Value;
-
-                    // Convertir nombres de propiedades de camelCase a PascalCase
-                    switch (key.ToLower())
-                    {
-                        case "nombre":
-                            updateDefinition = updateDefinition.Set(s => s.Nombre, value?.ToString());
-                            break;
-                        case "cedula":
-                            updateDefinition = updateDefinition.Set(s => s.Cedula, value?.ToString());
-                            break;
-                        case "rne":
-                            updateDefinition = updateDefinition.Set(s => s.Rne, value?.ToString());
-                            break;
-                        case "estado":
-                            updateDefinition = updateDefinition.Set(s => s.Estado, value?.ToString());
-                            break;
-                        case "tasaasistencia":
-                            if (double.TryParse(value?.ToString(), out var asistencia))
-                                updateDefinition = updateDefinition.Set(s => s.TasaAsistencia, asistencia);
-                            break;
-                        case "promediogeneral":
-                            if (double.TryParse(value?.ToString(), out var promedio))
-                                updateDefinition = updateDefinition.Set(s => s.PromedioGeneral, promedio);
-                            break;
-                        case "estadobecamescyt":
-                            updateDefinition = updateDefinition.Set(s => s.EstadoBecaMescyt, value?.ToString());
-                            break;
-                        case "protocoloarquitectura":
-                            updateDefinition = updateDefinition.Set(s => s.ProtocoloArquitectura, value?.ToString());
-                            break;
-                        case "logssincronizacion":
-                            updateDefinition = updateDefinition.Set(s => s.LogsSincronizacion, value?.ToString());
-                            break;
-                    }
-                }
-
-                var result = await _studentCollection.FindOneAndUpdateAsync(
-                    Builders<Student>.Filter.Eq(s => s.Id, id),
-                    updateDefinition,
-                    new FindOneAndUpdateOptions<Student, Student> { ReturnDocument = ReturnDocument.After }
-                );
-
-                if (result == null)
-                    return NotFound(new { error = "Estudiante no encontrado" });
-
-                await RegistrarAuditoriaAsync(
-                    "PATCH",
-                    "Estudiante",
-                    $"Estudiante actualizado parcialmente: {id}. Campos: {string.Join(", ", updates.Keys)}",
-                    userRole
-                );
-
-                _logger.LogInformation($"[API] PATCH /api/PatchExampleData/{id} - Estudiante parcialmente actualizado");
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"[API] Error al actualizar estudiante (PATCH): {ex.Message}");
-                return StatusCode(500, new { error = "Error al actualizar el estudiante" });
-            }
-        }
-
-        /// <summary>
-        /// POST /api/SeedExampleData
-        /// Inserta 20 estudiantes ficticios si la colección está vacía
-        /// </summary>
-        /// <returns>Resumen de inserción</returns>
-        [HttpPost("SeedExampleData")]
-        public async Task<IActionResult> SeedExampleData()
-        {
-            try
-            {
-                var userRole = Request.Headers["X-User-Role"].ToString();
-                if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
-                {
-                    return StatusCode(403, new { error = "Acceso denegado para este rol" });
-                }
-
-                var totalActual = await _studentCollection.CountDocumentsAsync(Builders<Student>.Filter.Empty);
-                if (totalActual > 0)
-                {
-                    return Ok(new
-                    {
-                        message = "Seed omitido: la colección de estudiantes ya contiene datos.",
-                        totalActual
-                    });
-                }
-
-                var estudiantesSeed = GenerarEstudiantesSeed(20);
-                await _studentCollection.InsertManyAsync(estudiantesSeed);
-
-                await RegistrarAuditoriaAsync(
-                    "SEED",
-                    "Estudiante",
-                    "Inserción de 20 estudiantes ficticios para pruebas",
-                    userRole
-                );
-
-                _logger.LogInformation("[API] POST /api/SeedExampleData - Seed insertado con 20 estudiantes");
-                return Ok(new
-                {
-                    message = "Seed completado correctamente.",
-                    inserted = estudiantesSeed.Count
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"[API] Error al ejecutar seed de estudiantes: {ex.Message}");
-                return StatusCode(500, new { error = "Error al ejecutar el seed de estudiantes" });
-            }
-        }
+        return Ok(student);
     }
 }

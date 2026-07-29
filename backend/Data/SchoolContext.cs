@@ -1,48 +1,51 @@
-using MongoDB.Driver;
 using EDUMETRICS_DR.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace EDUMETRICS_DR.Data
 {
-    /// <summary>
-    /// Contexto de base de datos MongoDB para EDUMETRICS-DR
-    /// Gestiona la conexión y operaciones con la colección de estudiantes
-    /// </summary>
-    public class SchoolContext
+    public class SchoolContext : DbContext
     {
-        private readonly IMongoDatabase _database;
-
-        public SchoolContext(IMongoDatabase database)
+        public SchoolContext(DbContextOptions<SchoolContext> options) : base(options)
         {
-            _database = database ?? throw new ArgumentNullException(nameof(database));
         }
 
-        /// <summary>
-        /// Colección de estudiantes registrados en el sistema
-        /// </summary>
-        public IMongoCollection<Student> Students =>
-            _database.GetCollection<Student>("students");
+        public DbSet<Student> Students => Set<Student>();
+        public DbSet<Asignatura> Asignaturas => Set<Asignatura>();
+        public DbSet<User> Users => Set<User>();
+        public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
-        /// <summary>
-        /// Inicializa la base de datos con índices y datos predeterminados si es necesario
-        /// </summary>
-        public async Task InitializeAsync()
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            try
+            modelBuilder.Entity<Student>(entity =>
             {
-                // Crear índices
-                var indexModel = new CreateIndexModel<Student>(
-                    Builders<Student>.IndexKeys.Ascending(s => s.Rne),
-                    new CreateIndexOptions { Unique = false }
-                );
+                entity.HasIndex(e => e.Cedula).IsUnique();
+                entity.HasIndex(e => e.Rne).IsUnique();
+            });
 
-                await Students.Indexes.CreateOneAsync(indexModel);
-                
-                Console.WriteLine("[MongoDB] Base de datos inicializada correctamente");
-            }
-            catch (Exception ex)
+            modelBuilder.Entity<User>(entity =>
             {
-                Console.WriteLine($"[MongoDB] Error durante inicialización: {ex.Message}");
-            }
+                entity.HasIndex(e => e.Cedula).IsUnique();
+                entity.HasIndex(e => e.CorreoInstitucional).IsUnique();
+
+                entity.Property(e => e.Rol)
+                    .HasMaxLength(50)
+                    .IsRequired();
+
+                entity.ToTable(t => t.HasCheckConstraint(
+                    "CK_Users_Rol",
+                    "[Rol] IN ('Estudiante', 'Analista MINERD', 'Analista MESCYT')"
+                ));
+            });
+
+            modelBuilder.Entity<Asignatura>(entity =>
+            {
+                entity.HasOne(e => e.Student)
+                    .WithMany(s => s.Asignaturas)
+                    .HasForeignKey(e => e.StudentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            base.OnModelCreating(modelBuilder);
         }
     }
 }
