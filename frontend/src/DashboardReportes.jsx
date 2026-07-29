@@ -10,14 +10,12 @@ import {
   YAxis,
 } from 'recharts'
 
+const PRODUCTION_API_BASE = 'https://part-1-segundo-parcial-desarrollo-de-aplicativ-production.up.railway.app/api'
 const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim()
 const normalizedApiUrl = rawApiUrl.replace(/\/$/, '')
-const fallbackApiOrigin = typeof window !== 'undefined' ? window.location.origin : ''
 const API_BASE = normalizedApiUrl
   ? (normalizedApiUrl.endsWith('/api') ? normalizedApiUrl : `${normalizedApiUrl}/api`)
-  : (fallbackApiOrigin ? `${fallbackApiOrigin}/api` : '/api')
-
-const USER_ROLE_HEADER = { 'X-User-Role': 'Admin' }
+  : PRODUCTION_API_BASE
 const MODALIDAD_ACADEMICA = 'Modalidad Académica'
 const MODALIDAD_TECNICO = 'Modalidad Técnico Profesional'
 
@@ -52,9 +50,7 @@ function DashboardReportes({ refreshKey = 0 }) {
         setLoading(true)
         setError('')
 
-        const response = await fetch(`${API_BASE}/AllExampleData`, {
-          headers: USER_ROLE_HEADER,
-        })
+        const response = await fetch(`${API_BASE}/AllExampleData`)
 
         if (!response.ok) {
           throw new Error(`Error HTTP ${response.status}`)

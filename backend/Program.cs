@@ -4,11 +4,13 @@ using EDUMETRICS_DR.Models;
 using EDUMETRICS_DR.Services;
 using EDUMETRICS_DR.Filters;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Security.Claims;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -94,25 +96,11 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowFrontend", policy =>
-    {
-        var configuredOrigins =
-            Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS")
-            ?? builder.Configuration["Cors:AllowedOrigins"];
-
-        if (string.IsNullOrWhiteSpace(configuredOrigins))
-        {
-            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
-            return;
-        }
-
-        var origins = configuredOrigins
-            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        policy.WithOrigins(origins)
-            .AllowAnyMethod()
-            .AllowAnyHeader();
-    });
+    options.AddPolicy("AllowAll", policy =>
+        policy
+            .AllowAnyOrigin()
+            .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+            .AllowAnyHeader());
 });
 
 var app = builder.Build();
@@ -143,12 +131,43 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseExceptionHandler(handler =>
+{
+    handler.Run(async context =>
+    {
+        var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/json";
+
+        var payload = new
+        {
+            error = "Error interno del servidor.",
+            detail = exception?.Message
+        };
+
+        await context.Response.WriteAsync(JsonSerializer.Serialize(payload));
+    });
+});
+
+app.UseStatusCodePages(async statusContext =>
+{
+    var response = statusContext.HttpContext.Response;
+    if (response.HasStarted)
+    {
+        return;
+    }
+
+    response.ContentType = "application/json";
+    var payload = new { error = $"HTTP {response.StatusCode}" };
+    await response.WriteAsync(JsonSerializer.Serialize(payload));
+});
+
 if (!app.Environment.IsProduction())
 {
     app.UseHttpsRedirection();
 }
 
-app.UseCors("AllowFrontend");
+app.UseCors("AllowAll");
 
 app.UseAuthentication();
 app.UseAuthorization();

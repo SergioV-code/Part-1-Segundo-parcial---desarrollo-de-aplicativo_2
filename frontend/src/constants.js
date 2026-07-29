@@ -1,10 +1,10 @@
 // ─── API ───────────────────────────────────────────────────────────────────────
+const PRODUCTION_API_BASE = 'https://part-1-segundo-parcial-desarrollo-de-aplicativ-production.up.railway.app/api'
 const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim()
 const normalizedApiUrl = rawApiUrl.replace(/\/$/, '')
-const fallbackOrigin = typeof window !== 'undefined' ? window.location.origin : ''
 export const API_BASE = normalizedApiUrl
   ? normalizedApiUrl.endsWith('/api') ? normalizedApiUrl : `${normalizedApiUrl}/api`
-  : fallbackOrigin ? `${fallbackOrigin}/api` : '/api'
+  : PRODUCTION_API_BASE
 
 // ─── MODALIDADES ──────────────────────────────────────────────────────────────
 export const MOD_ACADEMICA = 'Modalidad Academica'

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 // ─── API BASE ──────────────────────────────────────────────────────────────────
+const PRODUCTION_API_BASE = 'https://part-1-segundo-parcial-desarrollo-de-aplicativ-production.up.railway.app/api'
 const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim()
 const normalizedApiUrl = rawApiUrl.replace(/\/$/, '')
-const fallbackOrigin = typeof window !== 'undefined' ? window.location.origin : ''
 const API_BASE = normalizedApiUrl
   ? normalizedApiUrl.endsWith('/api') ? normalizedApiUrl : `${normalizedApiUrl}/api`
-  : fallbackOrigin ? `${fallbackOrigin}/api` : '/api'
+  : PRODUCTION_API_BASE
 
 // ─── HELPER CENTRALIZADO DE PETICIONES HTTP ────────────────────────────────────
 /**
@@ -26,11 +26,21 @@ async function apiRequest(path, { method = 'GET', token = '', body = null } = {}
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(body ? { 'Content-Type': 'application/json' } : {}),
   }
-  const res = await fetch(url, {
-    method,
-    headers,
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  })
+  let res
+  try {
+    res = await fetch(url, {
+      method,
+      headers,
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    })
+  } catch (networkError) {
+    const message = networkError?.message || ''
+    if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
+      throw new Error('No fue posible conectar con la API. El servidor puede estar iniciando en Railway o no estar disponible temporalmente.')
+    }
+
+    throw new Error(`Error de red: ${message || 'conexión no disponible'}`)
+  }
 
   const text = await res.text()
   let payload = null
