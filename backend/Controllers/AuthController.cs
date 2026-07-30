@@ -8,6 +8,8 @@ namespace EDUMETRICS_DR.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
+    private static readonly TimeSpan LoginTimeout = TimeSpan.FromSeconds(7);
+
     private readonly IAuthService _authService;
     private readonly IUserService _userService;
 
@@ -25,7 +27,10 @@ public class AuthController : ControllerBase
             return ValidationProblem(ModelState);
         }
 
-        var authResponse = await _authService.LoginEstudianteAsync(request.Cedula, cancellationToken);
+        using var loginCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        loginCts.CancelAfter(LoginTimeout);
+
+        var authResponse = await _authService.LoginEstudianteAsync(request.Cedula, loginCts.Token);
         if (authResponse is null)
         {
             return Unauthorized(new { error = "Cédula no encontrada." });
@@ -54,7 +59,10 @@ public class AuthController : ControllerBase
             return BadRequest(new { error = "El correo institucional para Analista MESCYT debe terminar en @mescyt.gob.do." });
         }
 
-        var authResponse = await _authService.LoginAnalistaAsync(rolSeleccionado, correo, request.Password, cancellationToken);
+        using var loginCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        loginCts.CancelAfter(LoginTimeout);
+
+        var authResponse = await _authService.LoginAnalistaAsync(rolSeleccionado, correo, request.Password, loginCts.Token);
         if (authResponse is null)
         {
             return Unauthorized(new { error = "Credenciales institucionales inválidas." });
@@ -72,7 +80,10 @@ public class AuthController : ControllerBase
         }
 
         var correo = _userService.NormalizeInstitutionalEmail(request.CorreoInstitucional);
-        var authResponse = await _authService.LoginAdministradorAsync(correo, request.Password, cancellationToken);
+        using var loginCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        loginCts.CancelAfter(LoginTimeout);
+
+        var authResponse = await _authService.LoginAdministradorAsync(correo, request.Password, loginCts.Token);
         if (authResponse is null)
         {
             return Unauthorized(new { error = "Credenciales administrativas inválidas." });
