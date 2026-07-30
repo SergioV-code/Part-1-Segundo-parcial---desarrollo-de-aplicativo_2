@@ -41,11 +41,9 @@ public class AuthService : IAuthService
             return null;
         }
 
-        Student? student;
-        User? user;
         try
         {
-            student = await _context.Students
+            var student = await _context.Students
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Cedula == normalizedCedula, cancellationToken);
 
@@ -54,9 +52,39 @@ public class AuthService : IAuthService
                 return TryFallbackStudentLogin(normalizedCedula);
             }
 
-            user = await _context.Users.FirstOrDefaultAsync(
+            var user = await _context.Users.FirstOrDefaultAsync(
                 x => x.Cedula == normalizedCedula && x.Rol == SystemRoles.Estudiante,
                 cancellationToken);
+
+            if (user is null)
+            {
+                user = new User
+                {
+                    Cedula = normalizedCedula,
+                    NombreCompleto = student.Nombre,
+                    Rol = SystemRoles.Estudiante,
+                    Activo = true
+                };
+
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            var response = BuildToken(
+                user.Id.ToString(),
+                student.Nombre,
+                SystemRoles.Estudiante,
+                user.Cedula ?? normalizedCedula,
+                user.CorreoInstitucional);
+
+            await SafeAuditLogAsync(
+                student.Nombre,
+                SystemRoles.Estudiante,
+                "LOGIN_EXITOSO_ESTUDIANTE",
+                $"Inicio de sesion por cedula: {normalizedCedula}",
+                cancellationToken);
+
+            return response;
         }
         catch (SqlException)
         {
@@ -70,36 +98,6 @@ public class AuthService : IAuthService
         {
             return TryFallbackStudentLogin(normalizedCedula);
         }
-
-        if (user is null)
-        {
-            user = new User
-            {
-                Cedula = normalizedCedula,
-                NombreCompleto = student.Nombre,
-                Rol = SystemRoles.Estudiante,
-                Activo = true
-            };
-
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync(cancellationToken);
-        }
-
-        var response = BuildToken(
-            user.Id.ToString(),
-            student.Nombre,
-            SystemRoles.Estudiante,
-            user.Cedula ?? normalizedCedula,
-            user.CorreoInstitucional);
-
-        await SafeAuditLogAsync(
-            student.Nombre,
-            SystemRoles.Estudiante,
-            "LOGIN_EXITOSO_ESTUDIANTE",
-            $"Inicio de sesion por cedula: {normalizedCedula}",
-            cancellationToken);
-
-        return response;
     }
 
     public async Task<AuthResponseDto?> LoginAnalistaAsync(string rolSeleccionado, string correoInstitucional, string password, CancellationToken cancellationToken = default)
