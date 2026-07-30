@@ -208,10 +208,64 @@ function fmtDate(isoString) {
 }
 
 function hasValidDomainByRole(rol, usuario) {
-  const value = (usuario || '').trim().toLowerCase()
+  const value = sanitizeInstitutionalUser(usuario)
   if (rol === 'Analista MINERD') return value.endsWith('@minerd.gob.do')
   if (rol === 'Analista MESCYT') return value.endsWith('@mescyt.gob.do')
   return true
+}
+
+function sanitizeInstitutionalUser(value) {
+  return (value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[.,;:]+$/g, '')
+}
+
+function normalizeCedula(value) {
+  return (value || '').toString().replace(/\D/g, '')
+}
+
+function formatCedula(value) {
+  const digits = normalizeCedula(value)
+  if (digits.length !== 11) return (value || '').toString().trim()
+  return `${digits.slice(0, 3)}-${digits.slice(3, 10)}-${digits.slice(10)}`
+}
+
+function isValidCedula(value) {
+  return normalizeCedula(value).length === 11
+}
+
+function validateExpedienteForm(form, students, editingId) {
+  const nombre = (form.nombre || '').trim()
+  const centro = (form.centroEducativo || '').trim()
+  const cedulaDigits = normalizeCedula(form.cedula)
+
+  if (!nombre || !cedulaDigits || !centro) {
+    return 'Nombre, Cédula y Centro Educativo son obligatorios.'
+  }
+
+  if (nombre.length < 3) {
+    return 'El nombre debe tener al menos 3 caracteres.'
+  }
+
+  if (centro.length < 3) {
+    return 'El centro educativo debe tener al menos 3 caracteres.'
+  }
+
+  if (cedulaDigits.length !== 11) {
+    return 'La cédula debe contener 11 dígitos.'
+  }
+
+  const duplicated = (students || []).some(s =>
+    String(s.id) !== String(editingId)
+    && normalizeCedula(s.cedula) === cedulaDigits,
+  )
+
+  if (duplicated) {
+    return 'Ya existe un expediente con esa cédula.'
+  }
+
+  return ''
 }
 
 // ─── ESTILOS BASE ─────────────────────────────────────────────────────────────
@@ -362,27 +416,33 @@ export default function App() {
   const handleLogin = async e => {
     e.preventDefault()
     const esEstudiante = loginForm.rol === 'Estudiante'
-    const usuario = loginForm.usuario.trim()
+    const usuario = esEstudiante ? loginForm.usuario.trim() : sanitizeInstitutionalUser(loginForm.usuario)
+    const contrasena = (loginForm.contrasena || '').trim()
 
-    if (!loginForm.usuario.trim() || (!loginForm.contrasena.trim() && !esEstudiante)) {
+    if (!loginForm.usuario.trim() || (!contrasena && !esEstudiante)) {
       setLoginError(esEstudiante
         ? 'Ingresa tu cédula para continuar.'
         : 'Ingresa usuario y contraseña para continuar.')
       return
     }
 
+    if (esEstudiante && !isValidCedula(usuario)) {
+      setLoginError('La cédula debe contener 11 dígitos.')
+      return
+    }
+
     if (!esEstudiante) {
-      if (loginForm.rol === 'Analista MINERD' && !usuario.toLowerCase().endsWith('@minerd.gob.do')) {
+      if (loginForm.rol === 'Analista MINERD' && !usuario.endsWith('@minerd.gob.do')) {
         setLoginError('Para Analista MINERD el correo debe terminar en @minerd.gob.do.')
         return
       }
 
-      if (loginForm.rol === 'Analista MESCYT' && !usuario.toLowerCase().endsWith('@mescyt.gob.do')) {
+      if (loginForm.rol === 'Analista MESCYT' && !usuario.endsWith('@mescyt.gob.do')) {
         setLoginError('Para Analista MESCYT el correo debe terminar en @mescyt.gob.do.')
         return
       }
 
-      if (loginForm.contrasena.trim().length < 8) {
+      if (contrasena.length < 8) {
         setLoginError('La contraseña debe tener al menos 8 caracteres.')
         return
       }
@@ -394,7 +454,7 @@ export default function App() {
       if (esEstudiante) {
         response = await apiRequest('/Auth/login/estudiante', {
           method: 'POST',
-          body: { cedula: usuario },
+          body: { cedula: formatCedula(usuario) },
         })
       } else {
         response = await apiRequest('/Auth/login/analista', {
@@ -402,7 +462,7 @@ export default function App() {
           body: {
             rol: loginForm.rol,
             correoInstitucional: usuario,
-            password: loginForm.contrasena,
+            password: contrasena,
           },
         })
       }
@@ -425,7 +485,7 @@ export default function App() {
       const message = error?.message || 'No fue posible iniciar sesión.'
 
       if (!esEstudiante && /No fue posible conectar con la API/i.test(message)) {
-        const passwordValid = loginForm.contrasena.trim().length >= 8
+        const passwordValid = contrasena.length >= 8
         const domainValid = hasValidDomainByRole(loginForm.rol, usuario)
 
         if (passwordValid && domainValid) {
@@ -482,14 +542,25 @@ export default function App() {
     setFormSuccess('')
   }
 
-  const handleFormChange = e => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
+  const handleFormChange = e => {
+    const { name, value } = e.target
+    const nextValue = name === 'cedula'
+      ? value.replace(/[^\d-]/g, '').slice(0, 13)
+      : value
+    setForm(prev => ({ ...prev, [name]: nextValue }))
+  }
 
   const handleSubmit = async e => {
     e.preventDefault()
-    if (!form.nombre.trim() || !form.cedula.trim() || !form.centroEducativo.trim()) {
-      setFormError('Nombre, Cédula y Centro Educativo son obligatorios.')
+    const validationError = validateExpedienteForm(form, students, editingId)
+    if (validationError) {
+      setFormError(validationError)
       return
     }
+
+    const cleanNombre = form.nombre.trim()
+    const cleanCedula = formatCedula(form.cedula)
+    const cleanCentro = form.centroEducativo.trim()
 
     if (contingencyMode) {
       const nextModalidad = normalizeModalidad(form.modalidadAcademica)
@@ -498,23 +569,23 @@ export default function App() {
           s.id === editingId
             ? {
                 ...s,
-                nombre: form.nombre.trim(),
-                cedula: form.cedula.trim(),
-                centroEducativo: form.centroEducativo.trim(),
+                nombre: cleanNombre,
+                cedula: cleanCedula,
+                centroEducativo: cleanCentro,
                 modalidadAcademica: nextModalidad,
                 fechaActualizacion: new Date().toISOString(),
               }
             : s,
         ))
-        pushAudit('ACTUALIZAR', `Contingencia: expediente actualizado ${form.cedula.trim()}`, activeRole)
+        pushAudit('ACTUALIZAR', `Contingencia: expediente actualizado ${cleanCedula}`, activeRole)
         setFormSuccess('Expediente actualizado en modo contingencia.')
       } else {
         const nextId = students.reduce((maxId, item) => Math.max(maxId, Number(item.id) || 0), 0) + 1
         setStudents(prev => [{
           id: nextId,
-          nombre: form.nombre.trim(),
-          cedula: form.cedula.trim(),
-          centroEducativo: form.centroEducativo.trim(),
+          nombre: cleanNombre,
+          cedula: cleanCedula,
+          centroEducativo: cleanCentro,
           modalidadAcademica: nextModalidad,
           rne: `RNE-LOCAL-${Date.now()}`,
           distritoEducativo: '00-00',
@@ -524,7 +595,7 @@ export default function App() {
           fechaCreacion: new Date().toISOString(),
           fechaActualizacion: new Date().toISOString(),
         }, ...prev])
-        pushAudit('CREAR', `Contingencia: expediente creado ${form.cedula.trim()}`, activeRole)
+        pushAudit('CREAR', `Contingencia: expediente creado ${cleanCedula}`, activeRole)
         setFormSuccess('Expediente agregado en modo contingencia.')
       }
 
@@ -540,25 +611,25 @@ export default function App() {
       if (editingId) {
         const payload = {
           ...editingRecord,
-          nombre:             form.nombre.trim(),
-          cedula:             form.cedula.trim(),
-          centroEducativo:    form.centroEducativo.trim(),
+          nombre:             cleanNombre,
+          cedula:             cleanCedula,
+          centroEducativo:    cleanCentro,
           modalidadAcademica: normalizeModalidad(form.modalidadAcademica),
           fechaActualizacion: new Date().toISOString(),
         }
         await apiRequest(`/ChangeExampleData/${editingId}`, { method: 'PUT', token: authToken, body: payload })
-        pushAudit('ACTUALIZAR', `Usuario [${activeRole}] modificó expediente cédula ${form.cedula.trim()}`, activeRole)
+        pushAudit('ACTUALIZAR', `Usuario [${activeRole}] modificó expediente cédula ${cleanCedula}`, activeRole)
         setFormSuccess('Expediente actualizado correctamente.')
       } else {
         const payload = {
-          nombre:             form.nombre.trim(),
-          cedula:             form.cedula.trim(),
-          centroEducativo:    form.centroEducativo.trim(),
+          nombre:             cleanNombre,
+          cedula:             cleanCedula,
+          centroEducativo:    cleanCentro,
           modalidadAcademica: normalizeModalidad(form.modalidadAcademica),
           rne:                `RNE-${Date.now()}`,
         }
         await apiRequest('/CreateExample', { method: 'POST', token: authToken, body: payload })
-        pushAudit('CREAR', `Usuario [${activeRole}] creó registro para cédula ${form.cedula.trim()}`, activeRole)
+        pushAudit('CREAR', `Usuario [${activeRole}] creó registro para cédula ${cleanCedula}`, activeRole)
         setFormSuccess('Expediente registrado correctamente.')
       }
 
@@ -631,7 +702,7 @@ export default function App() {
       return { ...studentProfileData, modalidadAcademica: normalizeModalidad(studentProfileData.modalidadAcademica) }
     }
     const cedula = loginForm.usuario.trim()
-    return students.find(s => (s.cedula || '').replace(/-/g, '') === cedula.replace(/-/g, ''))
+    return students.find(s => normalizeCedula(s.cedula) === normalizeCedula(cedula))
       || { nombre: `Estudiante ${cedula}`, cedula, centroEducativo: '—', modalidadAcademica: MOD_ACADEMICA }
   }, [students, studentProfileData, loginForm.usuario, activeRole])
 
