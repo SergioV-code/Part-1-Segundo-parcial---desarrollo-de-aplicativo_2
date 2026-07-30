@@ -1,5 +1,6 @@
 using EDUMETRICS_DR.Data;
 using EDUMETRICS_DR.Models;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace EDUMETRICS_DR.Services;
@@ -15,10 +16,21 @@ public class StudentService
 
     public async Task<List<Student>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        return await _context.Students
-            .AsNoTracking()
-            .OrderBy(x => x.Nombre)
-            .ToListAsync(cancellationToken);
+        try
+        {
+            return await _context.Students
+                .AsNoTracking()
+                .OrderBy(x => x.Nombre)
+                .ToListAsync(cancellationToken);
+        }
+        catch (SqlException)
+        {
+            return new List<Student>();
+        }
+        catch (DbUpdateException)
+        {
+            return new List<Student>();
+        }
     }
 
     public async Task<Student?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
@@ -30,10 +42,21 @@ public class StudentService
 
     public async Task<Student?> GetByCedulaAsync(string cedula, CancellationToken cancellationToken = default)
     {
-        return await _context.Students
-            .Include(x => x.Asignaturas)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Cedula == cedula, cancellationToken);
+        try
+        {
+            return await _context.Students
+                .Include(x => x.Asignaturas)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Cedula == cedula, cancellationToken);
+        }
+        catch (SqlException)
+        {
+            return null;
+        }
+        catch (DbUpdateException)
+        {
+            return null;
+        }
     }
 
     public async Task<Student> CreateAsync(Student student, CancellationToken cancellationToken = default)

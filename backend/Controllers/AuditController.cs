@@ -1,5 +1,6 @@
 using EDUMETRICS_DR.Data;
 using EDUMETRICS_DR.Models;
+using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -21,11 +22,22 @@ public class AuditController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAuditLogs(CancellationToken cancellationToken)
     {
-        var logs = await _context.AuditLogs
-            .AsNoTracking()
-            .OrderByDescending(l => l.FechaHora)
-            .ToListAsync(cancellationToken);
+        try
+        {
+            var logs = await _context.AuditLogs
+                .AsNoTracking()
+                .OrderByDescending(l => l.FechaHora)
+                .ToListAsync(cancellationToken);
 
-        return Ok(logs);
+            return Ok(logs);
+        }
+        catch (SqlException)
+        {
+            return Ok(Array.Empty<AuditLog>());
+        }
+        catch (DbUpdateException)
+        {
+            return Ok(Array.Empty<AuditLog>());
+        }
     }
 }
