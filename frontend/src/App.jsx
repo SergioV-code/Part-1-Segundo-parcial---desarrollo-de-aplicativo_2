@@ -23,8 +23,8 @@ const API_BASE_CANDIDATES = Array.from(new Set([
   PRODUCTION_API_BASE,
 ].filter(Boolean)))
 
-const API_REQUEST_TIMEOUT_MS = 12000
-const AUTH_REQUEST_TIMEOUT_MS = 22000
+const API_REQUEST_TIMEOUT_MS = 22000
+const AUTH_REQUEST_TIMEOUT_MS = 30000
 
 // ─── HELPER CENTRALIZADO DE PETICIONES HTTP ────────────────────────────────────
 /**
