@@ -21,6 +21,8 @@ const API_BASE_CANDIDATES = Array.from(new Set([
   PRODUCTION_API_BASE,
 ].filter(Boolean)))
 
+const API_REQUEST_TIMEOUT_MS = 12000
+
 // ─── HELPER CENTRALIZADO DE PETICIONES HTTP ────────────────────────────────────
 /**
  * apiRequest – wrapper centralizado para todas las llamadas al backend.
@@ -43,12 +45,18 @@ async function apiRequest(path, { method = 'GET', token = '', body = null } = {}
 
   for (const base of API_BASE_CANDIDATES) {
     const url = `${base}${path}`
+    let timeoutId
     try {
+      const controller = new AbortController()
+      timeoutId = setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS)
+
       const res = await fetch(url, {
         method,
         headers,
+        signal: controller.signal,
         ...(body ? { body: JSON.stringify(body) } : {}),
       })
+      clearTimeout(timeoutId)
 
       const text = await res.text()
       let payload = null
@@ -90,10 +98,20 @@ async function apiRequest(path, { method = 'GET', token = '', body = null } = {}
       return payload
     } catch (error) {
       const message = error?.message || ''
+
+      if (error?.name === 'AbortError') {
+        lastError = new Error(`Timeout al conectar con ${base}`)
+        continue
+      }
+
       if (/HTTP [45]\d\d/i.test(message)) {
         throw error
       }
       lastError = error
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
     }
   }
 
