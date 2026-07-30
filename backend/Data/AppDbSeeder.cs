@@ -33,7 +33,8 @@ public static class AppDbSeeder
             plainPassword: mescytPassword,
             cancellationToken);
 
-        if (!await context.Students.AnyAsync(cancellationToken))
+        var currentStudentCount = await context.Students.CountAsync(cancellationToken);
+        if (currentStudentCount < 50)
         {
             var now = DateTime.UtcNow;
             var firstNames = new[]
@@ -62,7 +63,7 @@ public static class AppDbSeeder
 
             var districts = new[] { "01-01", "02-03", "03-02", "04-01", "05-01", "06-02", "07-01", "08-03", "09-02", "10-01" };
 
-            var students = Enumerable.Range(1, 50).Select(i => new Student
+            var students = Enumerable.Range(currentStudentCount + 1, 50 - currentStudentCount).Select(i => new Student
             {
                 Nombre = $"{firstNames[(i - 1) % firstNames.Length]} {lastNames[(i * 3) % lastNames.Length]}",
                 Cedula = $"001-{i:0000000}-{i % 10}",
