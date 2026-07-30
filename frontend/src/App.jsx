@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
+import * as XLSX from 'xlsx'
 
 // ─── API BASE ──────────────────────────────────────────────────────────────────
 const PRODUCTION_API_BASE = 'https://part-1-segundo-parcial-desarrollo-de-aplicativ-production.up.railway.app/api'
@@ -207,6 +210,21 @@ function fmtDate(isoString) {
   } catch { return isoString }
 }
 
+function fileTimestamp() {
+  const d = new Date()
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  const ss = String(d.getSeconds()).padStart(2, '0')
+  return `${yyyy}${mm}${dd}-${hh}${min}${ss}`
+}
+
+function exportDateLabel() {
+  return new Date().toLocaleString('es-DO')
+}
+
 function hasValidDomainByRole(rol, usuario) {
   const value = sanitizeInstitutionalUser(usuario)
   if (rol === 'Analista MINERD') return value.endsWith('@minerd.gob.do')
@@ -348,12 +366,73 @@ function EstadoBadge({ estado }) {
   )
 }
 
+function InlineSpinner({ className = '' }) {
+  const base = 'inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700'
+  return <span className={`${base} ${className}`.trim()} />
+}
+
+function KpiSkeleton() {
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-5 animate-pulse">
+      <div className="h-4 w-32 rounded bg-slate-200" />
+      <div className="mt-3 h-10 w-20 rounded bg-slate-200" />
+    </article>
+  )
+}
+
+function DistributionSkeleton() {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4 animate-pulse">
+      <div className="h-4 w-56 rounded bg-slate-200" />
+      {[1, 2, 3].map(item => (
+        <div key={item}>
+          <div className="mb-2 flex justify-between">
+            <div className="h-3 w-40 rounded bg-slate-200" />
+            <div className="h-3 w-16 rounded bg-slate-200" />
+          </div>
+          <div className="h-3 w-full rounded-full bg-slate-200" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function TableSkeleton({ rows = 7 }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-200 animate-pulse">
+      <table className="w-full min-w-[860px] border-collapse text-sm">
+        <thead className="bg-slate-50">
+          <tr>
+            {[1, 2, 3, 4, 5].map(col => (
+              <th key={col} className="border-b border-slate-200 px-4 py-3 text-left">
+                <div className="h-3 w-24 rounded bg-slate-200" />
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: rows }).map((_, idx) => (
+            <tr key={idx}>
+              {[1, 2, 3, 4, 5].map(col => (
+                <td key={col} className="border-b border-slate-100 px-4 py-3">
+                  <div className="h-3 w-full max-w-[180px] rounded bg-slate-200" />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 export default function App() {
   // Auth / sesión
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [authToken, setAuthToken]             = useState('')
   const [activeRole, setActiveRole]           = useState(ROLES[0])
+  const [authSubmitting, setAuthSubmitting]   = useState(false)
   const [loginForm, setLoginForm]             = useState({ usuario: '', contrasena: '', rol: ROLES[0] })
   const [loginError, setLoginError]           = useState('')
   const [contingencyMode, setContingencyMode] = useState(false)
@@ -380,6 +459,7 @@ export default function App() {
   const [cedulaSearch, setCedulaSearch] = useState('')
   const [modFilter,    setModFilter]    = useState('Todos')
   const [deletingId,   setDeletingId]   = useState('')
+  const [exporting,    setExporting]    = useState('')
 
   // Auditoría
   const [auditLogs, setAuditLogs] = useState([])
@@ -485,6 +565,7 @@ export default function App() {
     }
 
     try {
+      setAuthSubmitting(true)
       setLoginError('')
       let response
       if (esEstudiante) {
@@ -546,6 +627,8 @@ export default function App() {
       }
 
       setLoginError(message)
+    } finally {
+      setAuthSubmitting(false)
     }
   }
 
@@ -751,6 +834,162 @@ export default function App() {
       || { nombre: `Estudiante ${cedula}`, cedula, centroEducativo: '—', modalidadAcademica: MOD_ACADEMICA }
   }, [students, studentProfileData, loginForm.usuario, activeRole])
 
+  // ── Exportaciones ───────────────────────────────────────────────────────────
+  const exportGestionExcel = async () => {
+    if (gestionRows.length === 0) throw new Error('No hay expedientes para exportar con los filtros actuales.')
+
+    const rows = gestionRows.map(item => ({
+      Nombre: item.nombre || '—',
+      Cedula: item.cedula || '—',
+      CentroEducativo: item.centroEducativo || '—',
+      Modalidad: normalizeModalidad(item.modalidadAcademica),
+      RNE: item.rne || '—',
+      Distrito: item.distritoEducativo || '—',
+    }))
+
+    const worksheet = XLSX.utils.json_to_sheet(rows)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Expedientes')
+    XLSX.writeFile(workbook, `edumetrics-expedientes-${fileTimestamp()}.xlsx`)
+  }
+
+  const exportGestionPdf = async () => {
+    if (gestionRows.length === 0) throw new Error('No hay expedientes para exportar con los filtros actuales.')
+
+    const doc = new jsPDF({ orientation: 'landscape' })
+    doc.setFontSize(14)
+    doc.text('EDUMETRICS-DR - Gestion de Expedientes', 14, 14)
+    doc.setFontSize(9)
+    doc.text(`Fecha de exportacion: ${exportDateLabel()}`, 14, 20)
+    doc.text(`Rol: ${activeRole}`, 14, 25)
+
+    autoTable(doc, {
+      startY: 30,
+      head: [['Nombre', 'Cedula', 'Centro', 'Modalidad', 'RNE', 'Distrito']],
+      body: gestionRows.map(item => [
+        item.nombre || '—',
+        item.cedula || '—',
+        item.centroEducativo || '—',
+        normalizeModalidad(item.modalidadAcademica),
+        item.rne || '—',
+        item.distritoEducativo || '—',
+      ]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [15, 58, 122] },
+    })
+
+    doc.save(`edumetrics-expedientes-${fileTimestamp()}.pdf`)
+  }
+
+  const exportReportesExcel = async () => {
+    if (students.length === 0) throw new Error('No hay datos disponibles para exportar reportes.')
+
+    const workbook = XLSX.utils.book_new()
+    const resumenSheet = XLSX.utils.json_to_sheet([
+      { Indicador: 'Total expedientes', Valor: kpis.total },
+      { Indicador: MOD_ACADEMICA, Valor: kpis.academica },
+      { Indicador: MOD_TECNICO, Valor: kpis.tecnico },
+      { Indicador: '% Modalidad Academica', Valor: `${kpis.pctAcademica}%` },
+      { Indicador: '% Modalidad Tecnico Profesional', Valor: `${kpis.pctTecnico}%` },
+      { Indicador: 'Fecha exportacion', Valor: exportDateLabel() },
+    ])
+
+    const centrosSheet = XLSX.utils.json_to_sheet(
+      byCentro.map(item => ({ CentroEducativo: item.label, Cantidad: item.count, Porcentaje: `${item.pct}%` })),
+    )
+
+    XLSX.utils.book_append_sheet(workbook, resumenSheet, 'Resumen')
+    XLSX.utils.book_append_sheet(workbook, centrosSheet, 'Centros')
+    XLSX.writeFile(workbook, `edumetrics-reportes-${fileTimestamp()}.xlsx`)
+  }
+
+  const exportReportesPdf = async () => {
+    if (students.length === 0) throw new Error('No hay datos disponibles para exportar reportes.')
+
+    const doc = new jsPDF({ orientation: 'portrait' })
+    doc.setFontSize(14)
+    doc.text('EDUMETRICS-DR - Reportes Empresariales', 14, 14)
+    doc.setFontSize(9)
+    doc.text(`Fecha de exportacion: ${exportDateLabel()}`, 14, 20)
+
+    autoTable(doc, {
+      startY: 26,
+      head: [['Indicador', 'Valor']],
+      body: [
+        ['Total expedientes', String(kpis.total)],
+        [MOD_ACADEMICA, `${kpis.academica} (${kpis.pctAcademica}%)`],
+        [MOD_TECNICO, `${kpis.tecnico} (${kpis.pctTecnico}%)`],
+      ],
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [7, 89, 133] },
+    })
+
+    const nextY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 8 : 60
+    autoTable(doc, {
+      startY: nextY,
+      head: [['Centro educativo', 'Cantidad', 'Porcentaje']],
+      body: byCentro.map(item => [item.label, String(item.count), `${item.pct}%`]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [8, 145, 178] },
+    })
+
+    doc.save(`edumetrics-reportes-${fileTimestamp()}.pdf`)
+  }
+
+  const exportAuditoriaExcel = async () => {
+    if (auditLogs.length === 0) throw new Error('No hay eventos de auditoria para exportar en esta sesion.')
+
+    const rows = auditLogs.map(item => ({
+      FechaHora: fmt(item.fecha),
+      Usuario: item.usuario || '—',
+      Rol: item.rol || activeRole,
+      Accion: item.accion || '—',
+      Detalles: item.detalles || '—',
+    }))
+
+    const worksheet = XLSX.utils.json_to_sheet(rows)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Auditoria')
+    XLSX.writeFile(workbook, `edumetrics-auditoria-${fileTimestamp()}.xlsx`)
+  }
+
+  const exportAuditoriaPdf = async () => {
+    if (auditLogs.length === 0) throw new Error('No hay eventos de auditoria para exportar en esta sesion.')
+
+    const doc = new jsPDF({ orientation: 'landscape' })
+    doc.setFontSize(14)
+    doc.text('EDUMETRICS-DR - Registro de Auditoria', 14, 14)
+    doc.setFontSize(9)
+    doc.text(`Fecha de exportacion: ${exportDateLabel()}`, 14, 20)
+
+    autoTable(doc, {
+      startY: 26,
+      head: [['Fecha y Hora', 'Usuario', 'Rol', 'Accion', 'Detalles']],
+      body: auditLogs.map(item => [
+        fmt(item.fecha),
+        item.usuario || '—',
+        item.rol || activeRole,
+        item.accion || '—',
+        item.detalles || '—',
+      ]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [22, 101, 52] },
+    })
+
+    doc.save(`edumetrics-auditoria-${fileTimestamp()}.pdf`)
+  }
+
+  const runExport = async (key, exporter) => {
+    try {
+      setExporting(key)
+      await exporter()
+    } catch (error) {
+      window.alert(error?.message || 'No se pudo completar la exportacion.')
+    } finally {
+      setExporting('')
+    }
+  }
+
   const pensumStats = useMemo(() => {
     const aprobadas = DEMO_PENSUM.filter(m => m.estado === 'Aprobada').length
     const cursando  = DEMO_PENSUM.filter(m => m.estado === 'Cursando').length
@@ -838,11 +1077,14 @@ export default function App() {
 
             <button
               type="submit"
+              disabled={authSubmitting}
               className={`w-full rounded-lg py-2.5 text-sm font-semibold text-white transition-colors ${
-                esEstudiante ? 'bg-violet-600 hover:bg-violet-700' : 'bg-blue-700 hover:bg-blue-800'
+                esEstudiante ? 'bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400' : 'bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400'
               }`}
             >
-              Iniciar sesión
+              {authSubmitting
+                ? <span className="inline-flex items-center gap-2"><InlineSpinner className="border-white/50 border-t-white" /> Validando credenciales…</span>
+                : 'Iniciar sesión'}
             </button>
           </form>
 
@@ -961,7 +1203,9 @@ export default function App() {
               <button type="submit" disabled={submitting}
                 style={{ background: submitting ? '#94a3b8' : roleColor.bg }}
                 className="rounded-lg px-5 py-2 text-sm font-semibold text-white transition-colors">
-                {submitting ? 'Guardando…' : editingId ? 'Guardar cambios' : 'Agregar expediente'}
+                {submitting
+                  ? <span className="inline-flex items-center gap-2"><InlineSpinner className="border-white/50 border-t-white" /> Guardando…</span>
+                  : editingId ? 'Guardar cambios' : 'Agregar expediente'}
               </button>
             </div>
           </form>
@@ -982,18 +1226,29 @@ export default function App() {
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
-              <KpiCard label="Total expedientes" value={loading ? '…' : kpis.total}
-                colorBorder="border-blue-200" colorBg="bg-blue-50" colorText="text-blue-700" colorValue="text-blue-900" />
-              <KpiCard label={MOD_ACADEMICA} value={loading ? '…' : kpis.academica}
-                colorBorder="border-cyan-200" colorBg="bg-cyan-50" colorText="text-cyan-700" colorValue="text-cyan-900" />
-              <KpiCard label={MOD_TECNICO} value={loading ? '…' : kpis.tecnico}
-                colorBorder="border-emerald-200" colorBg="bg-emerald-50" colorText="text-emerald-700" colorValue="text-emerald-900" />
+              {loading ? (
+                <>
+                  <KpiSkeleton />
+                  <KpiSkeleton />
+                  <KpiSkeleton />
+                </>
+              ) : (
+                <>
+                  <KpiCard label="Total expedientes" value={kpis.total}
+                    colorBorder="border-blue-200" colorBg="bg-blue-50" colorText="text-blue-700" colorValue="text-blue-900" />
+                  <KpiCard label={MOD_ACADEMICA} value={kpis.academica}
+                    colorBorder="border-cyan-200" colorBg="bg-cyan-50" colorText="text-cyan-700" colorValue="text-cyan-900" />
+                  <KpiCard label={MOD_TECNICO} value={kpis.tecnico}
+                    colorBorder="border-emerald-200" colorBg="bg-emerald-50" colorText="text-emerald-700" colorValue="text-emerald-900" />
+                </>
+              )}
             </div>
             {dataError && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
                 <strong>Error al cargar datos:</strong> {dataError}
-                <button type="button" onClick={() => fetchStudents(authToken)} className="ml-3 underline font-medium">
-                  Reintentar
+                <button type="button" disabled={loading} onClick={() => fetchStudents(authToken)} className="ml-3 inline-flex items-center gap-2 underline font-medium disabled:opacity-50">
+                  {loading && <InlineSpinner />}
+                  {loading ? 'Reintentando…' : 'Reintentar'}
                 </button>
               </div>
             )}
@@ -1012,10 +1267,28 @@ export default function App() {
           <section className={`${card} p-5 space-y-4`}>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-base font-semibold text-slate-800">Gestión de Expedientes</h2>
-              <div className="flex gap-2 text-xs">
+              <div className="flex gap-2 text-xs flex-wrap">
                 <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-600">
                   {gestionRows.length} resultado{gestionRows.length !== 1 ? 's' : ''}
                 </span>
+                <button
+                  type="button"
+                  disabled={exporting !== '' || loading}
+                  onClick={() => runExport('gestion-excel', exportGestionExcel)}
+                  className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 font-semibold text-emerald-700 disabled:opacity-50"
+                >
+                  {exporting === 'gestion-excel' && <InlineSpinner />}
+                  Excel
+                </button>
+                <button
+                  type="button"
+                  disabled={exporting !== '' || loading}
+                  onClick={() => runExport('gestion-pdf', exportGestionPdf)}
+                  className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1 font-semibold text-rose-700 disabled:opacity-50"
+                >
+                  {exporting === 'gestion-pdf' && <InlineSpinner />}
+                  PDF
+                </button>
                 <button
                   type="button"
                   onClick={() => { setActiveTab(TAB_FORMULARIO); cancelEdit() }}
@@ -1044,12 +1317,7 @@ export default function App() {
               </label>
             </div>
 
-            {loading && (
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
-                Cargando expedientes…
-              </div>
-            )}
+            {loading && <TableSkeleton rows={7} />}
             {dataError && (
               <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">
                 Error al cargar: {dataError}
@@ -1099,7 +1367,9 @@ export default function App() {
                           <button type="button" onClick={() => handleDelete(student.id)}
                             disabled={!student.id || deletingId === student.id || submitting}
                             className="rounded-md border border-rose-400 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-40 transition-colors">
-                            {deletingId === student.id ? 'Eliminando…' : 'Eliminar'}
+                            {deletingId === student.id
+                              ? <span className="inline-flex items-center gap-1"><InlineSpinner /> Eliminando…</span>
+                              : 'Eliminar'}
                           </button>
                         </td>
                       </tr>
@@ -1114,37 +1384,73 @@ export default function App() {
         {/* ═══ GUBERNAMENTAL: REPORTES ═══ */}
         {activeTab === TAB_REPORTES && isGov(activeRole) && (
           <section className={`${card} p-5 space-y-5`}>
-            <h2 className="text-base font-semibold text-slate-800">Reportes Empresariales</h2>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <KpiCard label="Total expedientes" value={kpis.total}
-                colorBorder="border-blue-200" colorBg="bg-blue-50" colorText="text-blue-600" colorValue="text-blue-900" />
-              <KpiCard label={MOD_ACADEMICA} value={kpis.academica}
-                colorBorder="border-cyan-200" colorBg="bg-cyan-50" colorText="text-cyan-600" colorValue="text-cyan-900" />
-              <KpiCard label={MOD_TECNICO} value={kpis.tecnico}
-                colorBorder="border-emerald-200" colorBg="bg-emerald-50" colorText="text-emerald-600" colorValue="text-emerald-900" />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-base font-semibold text-slate-800">Reportes Empresariales</h2>
+              <div className="flex gap-2 text-xs">
+                <button
+                  type="button"
+                  disabled={exporting !== '' || loading}
+                  onClick={() => runExport('reportes-excel', exportReportesExcel)}
+                  className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 font-semibold text-emerald-700 disabled:opacity-50"
+                >
+                  {exporting === 'reportes-excel' && <InlineSpinner />}
+                  Excel
+                </button>
+                <button
+                  type="button"
+                  disabled={exporting !== '' || loading}
+                  onClick={() => runExport('reportes-pdf', exportReportesPdf)}
+                  className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1 font-semibold text-rose-700 disabled:opacity-50"
+                >
+                  {exporting === 'reportes-pdf' && <InlineSpinner />}
+                  PDF
+                </button>
+              </div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-              <p className="text-sm font-semibold text-slate-700">Distribución por modalidad educativa</p>
-              <ProgressBar label={MOD_ACADEMICA} value={kpis.academica} pct={kpis.pctAcademica} colorBar="bg-blue-600" />
-              <ProgressBar label={MOD_TECNICO}   value={kpis.tecnico}   pct={kpis.pctTecnico}   colorBar="bg-emerald-600" />
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-              <p className="text-sm font-semibold text-slate-700">Distribución por centro educativo</p>
-              {byCentro.length === 0
-                ? <p className="text-sm text-slate-500">Sin datos disponibles.</p>
-                : byCentro.map(item => (
-                    <div key={item.label}>
-                      <div className="mb-1 flex justify-between text-sm text-slate-700">
-                        <span className="truncate pr-4" title={item.label}>{item.label}</span>
-                        <strong className="shrink-0">{item.count} ({item.pct}%)</strong>
-                      </div>
-                      <div className="h-3 overflow-hidden rounded-full bg-slate-200">
-                        <div className="h-full rounded-full bg-cyan-600 transition-all duration-500" style={{ width: `${item.pct}%` }} />
-                      </div>
-                    </div>
-                  ))
-              }
-            </div>
+            {loading ? (
+              <>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <KpiSkeleton />
+                  <KpiSkeleton />
+                  <KpiSkeleton />
+                </div>
+                <DistributionSkeleton />
+                <DistributionSkeleton />
+              </>
+            ) : (
+              <>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <KpiCard label="Total expedientes" value={kpis.total}
+                    colorBorder="border-blue-200" colorBg="bg-blue-50" colorText="text-blue-600" colorValue="text-blue-900" />
+                  <KpiCard label={MOD_ACADEMICA} value={kpis.academica}
+                    colorBorder="border-cyan-200" colorBg="bg-cyan-50" colorText="text-cyan-600" colorValue="text-cyan-900" />
+                  <KpiCard label={MOD_TECNICO} value={kpis.tecnico}
+                    colorBorder="border-emerald-200" colorBg="bg-emerald-50" colorText="text-emerald-600" colorValue="text-emerald-900" />
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                  <p className="text-sm font-semibold text-slate-700">Distribución por modalidad educativa</p>
+                  <ProgressBar label={MOD_ACADEMICA} value={kpis.academica} pct={kpis.pctAcademica} colorBar="bg-blue-600" />
+                  <ProgressBar label={MOD_TECNICO}   value={kpis.tecnico}   pct={kpis.pctTecnico}   colorBar="bg-emerald-600" />
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                  <p className="text-sm font-semibold text-slate-700">Distribución por centro educativo</p>
+                  {byCentro.length === 0
+                    ? <p className="text-sm text-slate-500">Sin datos disponibles.</p>
+                    : byCentro.map(item => (
+                        <div key={item.label}>
+                          <div className="mb-1 flex justify-between text-sm text-slate-700">
+                            <span className="truncate pr-4" title={item.label}>{item.label}</span>
+                            <strong className="shrink-0">{item.count} ({item.pct}%)</strong>
+                          </div>
+                          <div className="h-3 overflow-hidden rounded-full bg-slate-200">
+                            <div className="h-full rounded-full bg-cyan-600 transition-all duration-500" style={{ width: `${item.pct}%` }} />
+                          </div>
+                        </div>
+                      ))
+                  }
+                </div>
+              </>
+            )}
           </section>
         )}
 
@@ -1157,6 +1463,24 @@ export default function App() {
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
                   {auditLogs.length} evento{auditLogs.length !== 1 ? 's' : ''}
                 </span>
+                <button
+                  type="button"
+                  disabled={exporting !== '' || auditLogs.length === 0}
+                  onClick={() => runExport('auditoria-excel', exportAuditoriaExcel)}
+                  className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 disabled:opacity-50"
+                >
+                  {exporting === 'auditoria-excel' && <InlineSpinner />}
+                  Excel
+                </button>
+                <button
+                  type="button"
+                  disabled={exporting !== '' || auditLogs.length === 0}
+                  onClick={() => runExport('auditoria-pdf', exportAuditoriaPdf)}
+                  className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 disabled:opacity-50"
+                >
+                  {exporting === 'auditoria-pdf' && <InlineSpinner />}
+                  PDF
+                </button>
                 {auditLogs.length > 0 && (
                   <button type="button" onClick={() => setAuditLogs([])}
                     className="rounded-full border border-slate-300 px-3 py-1 text-xs text-slate-500 hover:bg-slate-100 transition-colors">
