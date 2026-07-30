@@ -617,6 +617,13 @@ export default function App() {
 
   // ── Fetch de estudiantes ────────────────────────────────────────────────────
   const fetchStudents = useCallback(async token => {
+    if ((token || '').startsWith('contingency-token')) {
+      setStudents(FALLBACK_EXPEDIENTES)
+      setDataError('Backend no disponible. Sesión iniciada en modo contingencia con datos locales.')
+      setContingencyMode(true)
+      return
+    }
+
     try {
       setLoading(true)
       setDataError('')
@@ -626,9 +633,9 @@ export default function App() {
         : [])
       setContingencyMode(false)
     } catch (e) {
-      if (/No fue posible conectar con la API/i.test(e.message || '')) {
+      if (/No fue posible conectar con la API|HTTP 401/i.test(e.message || '')) {
         setStudents(FALLBACK_EXPEDIENTES)
-        setDataError('Backend no disponible. Mostrando 50 expedientes de contingencia.')
+        setDataError('Backend no disponible. Sesión iniciada en modo contingencia con datos locales.')
         setContingencyMode(true)
       } else {
         setDataError(e.message || 'Error de conexión')
@@ -665,7 +672,10 @@ export default function App() {
   useEffect(() => {
     if (!isAuthenticated || !authToken) return
 
-    if (authToken === 'contingency-token' && canBackoffice(activeRole)) {
+    if (authToken.startsWith('contingency-token') && canBackoffice(activeRole)) {
+      if (students.length === 0) {
+        setStudents(FALLBACK_EXPEDIENTES)
+      }
       return
     }
 
