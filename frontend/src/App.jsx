@@ -116,7 +116,7 @@ async function apiRequest(path, { method = 'GET', token = '', body = null } = {}
   }
 
   const message = lastError?.message || ''
-  if (/Failed to fetch|NetworkError|Load failed|HTTP 404|HTTP 405/i.test(message)) {
+  if (/Failed to fetch|NetworkError|Load failed|Timeout|AbortError|HTTP 404|HTTP 405/i.test(message)) {
     throw new Error('No fue posible conectar con la API. Verifica que el backend de Railway esté activo y respondiendo (health endpoint).')
   }
 
