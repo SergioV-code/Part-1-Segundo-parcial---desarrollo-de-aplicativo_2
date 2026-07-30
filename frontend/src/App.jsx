@@ -9,9 +9,11 @@ const API_BASE = normalizedApiUrl
   ? normalizedApiUrl.endsWith('/api') ? normalizedApiUrl : `${normalizedApiUrl}/api`
   : PRODUCTION_API_BASE
 
+const localFallbackApi = fallbackOrigin.includes('localhost') ? `${fallbackOrigin}/api` : ''
+
 const API_BASE_CANDIDATES = Array.from(new Set([
   API_BASE,
-  fallbackOrigin ? `${fallbackOrigin}/api` : '',
+  localFallbackApi,
   PRODUCTION_API_BASE,
 ].filter(Boolean)))
 
@@ -69,7 +71,7 @@ async function apiRequest(path, { method = 'GET', token = '', body = null } = {}
   }
 
   const message = lastError?.message || ''
-  if (/Failed to fetch|NetworkError|Load failed|HTTP 5\d\d/i.test(message)) {
+  if (/Failed to fetch|NetworkError|Load failed|HTTP 5\d\d|HTTP 404|HTTP 405/i.test(message)) {
     throw new Error('No fue posible conectar con la API. Verifica que el backend de Railway esté activo y respondiendo (health endpoint).')
   }
 
