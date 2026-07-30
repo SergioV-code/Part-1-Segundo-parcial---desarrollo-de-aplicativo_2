@@ -766,6 +766,20 @@ export default function App() {
     } catch (error) {
       const message = error?.message || 'No fue posible iniciar sesión.'
 
+      if (esEstudiante && /No fue posible conectar con la API/i.test(message)) {
+        const cedulaFallback = formatCedula(usuario)
+        setAuthToken('contingency-token-student')
+        setIsAuthenticated(true)
+        setActiveRole('Estudiante')
+        setSessionAuditUser(cedulaFallback)
+        setActiveTab(TAB_PERFIL)
+        setContingencyMode(true)
+        setStudents(FALLBACK_EXPEDIENTES)
+        setStudentProfileData(null)
+        pushAudit('SESION_INICIO', `Inicio de sesión estudiantil en contingencia para ${cedulaFallback}`, 'Estudiante', cedulaFallback)
+        return
+      }
+
       if (!esEstudiante && !esAdministrador && /No fue posible conectar con la API/i.test(message)) {
         const passwordValid = contrasena.length >= 8
         const domainValid = hasValidDomainByRole(loginForm.rol, usuario)
