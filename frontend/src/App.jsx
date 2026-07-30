@@ -92,6 +92,11 @@ async function apiRequest(path, { method = 'GET', token = '', body = null } = {}
           continue
         }
 
+        if (res.status === 502 || res.status === 503 || res.status === 504) {
+          lastError = new Error(`HTTP ${res.status} - ${detail}`)
+          continue
+        }
+
         if (res.status >= 500) {
           throw new Error(`HTTP ${res.status} - ${detail}`)
         }
