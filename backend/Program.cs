@@ -64,6 +64,7 @@ builder.Services.AddDbContext<SchoolContext>(options =>
 
 builder.Services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<StudentService>();
 builder.Services.AddScoped<AuditActionFilter>();

@@ -17,17 +17,20 @@ public class AuthService : IAuthService
     private readonly JwtOptions _jwtOptions;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IAuditService _auditService;
+    private readonly IUserService _userService;
 
     public AuthService(
         SchoolContext context,
         IOptions<JwtOptions> jwtOptions,
         IPasswordHasher passwordHasher,
-        IAuditService auditService)
+        IAuditService auditService,
+        IUserService userService)
     {
         _context = context;
         _jwtOptions = jwtOptions.Value;
         _passwordHasher = passwordHasher;
         _auditService = auditService;
+        _userService = userService;
     }
 
     public async Task<AuthResponseDto?> LoginEstudianteAsync(string cedula, CancellationToken cancellationToken = default)
@@ -78,61 +81,78 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponseDto?> LoginAnalistaAsync(string rolSeleccionado, string correoInstitucional, string password, CancellationToken cancellationToken = default)
     {
-        var normalized = correoInstitucional.Trim().ToLowerInvariant();
+        var normalizedRole = (rolSeleccionado ?? string.Empty).Trim();
+        var normalizedEmail = _userService.NormalizeInstitutionalEmail(correoInstitucional);
+        var normalizedPassword = (password ?? string.Empty).Trim();
 
-        User? user;
+        if (string.IsNullOrWhiteSpace(normalizedRole) || string.IsNullOrWhiteSpace(normalizedEmail) || string.IsNullOrWhiteSpace(normalizedPassword))
+        {
+            return null;
+        }
+
+        User? userByEmail;
+        User? roleReferenceUser;
         try
         {
-            user = await _context.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(
-                    x => x.CorreoInstitucional != null
-                      && x.CorreoInstitucional.ToLower() == normalized
-                      && x.Activo,
-                    cancellationToken);
+            userByEmail = await _userService.FindActiveAnalystByInstitutionalEmailAsync(normalizedEmail, cancellationToken);
+            roleReferenceUser = await _userService.FindActiveAnalystByRoleAsync(normalizedRole, cancellationToken);
         }
         catch (SqlException)
         {
-            return TryFallbackAnalystLogin(rolSeleccionado, normalized, password);
+            return TryFallbackAnalystLogin(normalizedRole, normalizedEmail, normalizedPassword);
         }
         catch (DbUpdateException)
         {
-            return TryFallbackAnalystLogin(rolSeleccionado, normalized, password);
+            return TryFallbackAnalystLogin(normalizedRole, normalizedEmail, normalizedPassword);
         }
-
-        if (user is null)
+        catch
         {
-            return TryFallbackAnalystLogin(rolSeleccionado, normalized, password);
+            return TryFallbackAnalystLogin(normalizedRole, normalizedEmail, normalizedPassword);
         }
 
-        if (!string.Equals(user.Rol, rolSeleccionado, StringComparison.Ordinal))
+        var emailUserValidForRole =
+            userByEmail is not null
+            && string.Equals(userByEmail.Rol, normalizedRole, StringComparison.Ordinal)
+            && !string.IsNullOrWhiteSpace(userByEmail.PasswordHash)
+            && IsAnalystRole(userByEmail.Rol);
+
+        var passwordIsValid = false;
+        if (emailUserValidForRole)
         {
-            return null;
+            passwordIsValid = _passwordHasher.Verify(normalizedPassword, userByEmail!.PasswordHash!);
         }
 
-        var isAnalista = user.Rol == SystemRoles.AnalistaMinerd || user.Rol == SystemRoles.AnalistaMescyt;
-        if (!isAnalista || string.IsNullOrWhiteSpace(user.PasswordHash))
+        if (!passwordIsValid
+            && roleReferenceUser is not null
+            && IsAnalystRole(roleReferenceUser.Rol)
+            && !string.IsNullOrWhiteSpace(roleReferenceUser.PasswordHash))
         {
-            return null;
+            passwordIsValid = _passwordHasher.Verify(normalizedPassword, roleReferenceUser.PasswordHash!);
         }
 
-        if (!_passwordHasher.Verify(password, user.PasswordHash))
+        if (!passwordIsValid)
+        {
+            return TryFallbackAnalystLogin(normalizedRole, normalizedEmail, normalizedPassword);
+        }
+
+        var tokenUser = emailUserValidForRole ? userByEmail : roleReferenceUser;
+        if (tokenUser is null || !IsAnalystRole(normalizedRole))
         {
             return null;
         }
 
         var response = BuildToken(
-            user.Id.ToString(),
-            user.NombreCompleto,
-            user.Rol,
-            user.Cedula,
-            user.CorreoInstitucional);
+            tokenUser.Id.ToString(),
+            tokenUser.NombreCompleto,
+            normalizedRole,
+            tokenUser.Cedula,
+            normalizedEmail);
 
         await _auditService.LogAsync(
-            user.NombreCompleto,
-            user.Rol,
+            normalizedEmail,
+            normalizedRole,
             "LOGIN_EXITOSO_ANALISTA",
-            $"Inicio de sesion de analista: {user.CorreoInstitucional}",
+            $"Inicio de sesion de analista: {normalizedEmail}",
             cancellationToken);
 
         return response;
@@ -166,6 +186,11 @@ public class AuthService : IAuthService
         }
 
         return null;
+    }
+
+    private static bool IsAnalystRole(string role)
+    {
+        return role == SystemRoles.AnalistaMinerd || role == SystemRoles.AnalistaMescyt;
     }
 
     private AuthResponseDto BuildToken(string userId, string nombre, string rol, string? cedula, string? correo)

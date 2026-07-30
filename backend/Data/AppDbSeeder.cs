@@ -8,56 +8,30 @@ public static class AppDbSeeder
 {
     public static async Task SeedAsync(SchoolContext context, IPasswordHasher passwordHasher, CancellationToken cancellationToken = default)
     {
-        var minerdEmail = "analista@minerd.gob.do";
-        var mescytEmail = "analista@mescyt.gob.do";
+        var minerdEmail = NormalizeEmail("analista@minerd.gob.do");
+        var mescytEmail = NormalizeEmail("analista@mescyt.gob.do");
+        var minerdPassword = Environment.GetEnvironmentVariable("FALLBACK_MINERD_PASSWORD") ?? "Minerd#2026";
+        var mescytPassword = Environment.GetEnvironmentVariable("FALLBACK_MESCYT_PASSWORD") ?? "Mescyt#2026";
 
-        var minerdUser = await context.Users.FirstOrDefaultAsync(
-            u => u.Rol == SystemRoles.AnalistaMinerd || u.CorreoInstitucional == minerdEmail,
+        await UpsertAnalystUserAsync(
+            context,
+            passwordHasher,
+            role: SystemRoles.AnalistaMinerd,
+            displayName: "Analista MINERD",
+            institutionalEmail: minerdEmail,
+            cedula: "ANL-MINERD-001",
+            plainPassword: minerdPassword,
             cancellationToken);
 
-        if (minerdUser is null)
-        {
-            context.Users.Add(new User
-            {
-                NombreCompleto = "Analista MINERD",
-                CorreoInstitucional = minerdEmail,
-                PasswordHash = passwordHasher.Hash("Minerd#2026"),
-                Rol = SystemRoles.AnalistaMinerd,
-                Activo = true
-            });
-        }
-        else
-        {
-            minerdUser.NombreCompleto = "Analista MINERD";
-            minerdUser.CorreoInstitucional = minerdEmail;
-            minerdUser.PasswordHash = passwordHasher.Hash("Minerd#2026");
-            minerdUser.Rol = SystemRoles.AnalistaMinerd;
-            minerdUser.Activo = true;
-        }
-
-        var mescytUser = await context.Users.FirstOrDefaultAsync(
-            u => u.Rol == SystemRoles.AnalistaMescyt || u.CorreoInstitucional == mescytEmail,
+        await UpsertAnalystUserAsync(
+            context,
+            passwordHasher,
+            role: SystemRoles.AnalistaMescyt,
+            displayName: "Analista MESCYT",
+            institutionalEmail: mescytEmail,
+            cedula: "ANL-MESCYT-001",
+            plainPassword: mescytPassword,
             cancellationToken);
-
-        if (mescytUser is null)
-        {
-            context.Users.Add(new User
-            {
-                NombreCompleto = "Analista MESCYT",
-                CorreoInstitucional = mescytEmail,
-                PasswordHash = passwordHasher.Hash("Mescyt#2026"),
-                Rol = SystemRoles.AnalistaMescyt,
-                Activo = true
-            });
-        }
-        else
-        {
-            mescytUser.NombreCompleto = "Analista MESCYT";
-            mescytUser.CorreoInstitucional = mescytEmail;
-            mescytUser.PasswordHash = passwordHasher.Hash("Mescyt#2026");
-            mescytUser.Rol = SystemRoles.AnalistaMescyt;
-            mescytUser.Activo = true;
-        }
 
         if (!await context.Students.AnyAsync(cancellationToken))
         {
@@ -83,5 +57,49 @@ public static class AppDbSeeder
         }
 
         await context.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task UpsertAnalystUserAsync(
+        SchoolContext context,
+        IPasswordHasher passwordHasher,
+        string role,
+        string displayName,
+        string institutionalEmail,
+        string cedula,
+        string plainPassword,
+        CancellationToken cancellationToken)
+    {
+        var normalizedEmail = NormalizeEmail(institutionalEmail);
+
+        var user = await context.Users.FirstOrDefaultAsync(
+            u => u.Rol == role || (u.CorreoInstitucional != null && u.CorreoInstitucional.Trim().ToLower() == normalizedEmail),
+            cancellationToken);
+
+        if (user is null)
+        {
+            context.Users.Add(new User
+            {
+                NombreCompleto = displayName,
+                CorreoInstitucional = normalizedEmail,
+                Cedula = cedula,
+                PasswordHash = passwordHasher.Hash(plainPassword),
+                Rol = role,
+                Activo = true
+            });
+
+            return;
+        }
+
+        user.NombreCompleto = displayName;
+        user.CorreoInstitucional = normalizedEmail;
+        user.Cedula = cedula;
+        user.PasswordHash = passwordHasher.Hash(plainPassword);
+        user.Rol = role;
+        user.Activo = true;
+    }
+
+    private static string NormalizeEmail(string email)
+    {
+        return (email ?? string.Empty).Trim().ToLowerInvariant();
     }
 }

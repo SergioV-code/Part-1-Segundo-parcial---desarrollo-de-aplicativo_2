@@ -9,10 +9,12 @@ namespace EDUMETRICS_DR.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IUserService _userService;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, IUserService userService)
     {
         _authService = authService;
+        _userService = userService;
     }
 
     [HttpPost("login/estudiante")]
@@ -40,18 +42,19 @@ public class AuthController : ControllerBase
             return ValidationProblem(ModelState);
         }
 
-        var correo = request.CorreoInstitucional.Trim().ToLowerInvariant();
-        if (request.Rol == "Analista MINERD" && !correo.EndsWith("@minerd.gob.do", StringComparison.OrdinalIgnoreCase))
+        var rolSeleccionado = request.Rol.Trim();
+        var correo = _userService.NormalizeInstitutionalEmail(request.CorreoInstitucional);
+        if (rolSeleccionado == "Analista MINERD" && !correo.EndsWith("@minerd.gob.do", StringComparison.OrdinalIgnoreCase))
         {
             return BadRequest(new { error = "El correo institucional para Analista MINERD debe terminar en @minerd.gob.do." });
         }
 
-        if (request.Rol == "Analista MESCYT" && !correo.EndsWith("@mescyt.gob.do", StringComparison.OrdinalIgnoreCase))
+        if (rolSeleccionado == "Analista MESCYT" && !correo.EndsWith("@mescyt.gob.do", StringComparison.OrdinalIgnoreCase))
         {
             return BadRequest(new { error = "El correo institucional para Analista MESCYT debe terminar en @mescyt.gob.do." });
         }
 
-        var authResponse = await _authService.LoginAnalistaAsync(request.Rol, request.CorreoInstitucional, request.Password, cancellationToken);
+        var authResponse = await _authService.LoginAnalistaAsync(rolSeleccionado, correo, request.Password, cancellationToken);
         if (authResponse is null)
         {
             return Unauthorized(new { error = "Credenciales institucionales inválidas." });
