@@ -342,7 +342,7 @@ export default function App() {
   useEffect(() => {
     if (!isAuthenticated || !authToken) return
 
-    if (contingencyMode && authToken === 'contingency-token' && isGov(activeRole)) {
+    if (authToken === 'contingency-token' && isGov(activeRole)) {
       return
     }
 
