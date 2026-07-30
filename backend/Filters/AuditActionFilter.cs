@@ -54,6 +54,13 @@ public class AuditActionFilter : IAsyncActionFilter
 
         var details = $"{context.HttpContext.Request.Method} {context.HttpContext.Request.Path} | Query: {context.HttpContext.Request.QueryString}";
 
-        await _auditService.LogAsync(usuario, rol, metadata.ActionName, details, context.HttpContext.RequestAborted);
+        try
+        {
+            await _auditService.LogAsync(usuario, rol, metadata.ActionName, details, context.HttpContext.RequestAborted);
+        }
+        catch
+        {
+            // No bloquear la respuesta principal si la auditoría falla por una caída temporal de la base de datos.
+        }
     }
 }
