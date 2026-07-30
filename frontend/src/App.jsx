@@ -9,6 +9,7 @@ const PRODUCTION_API_BASE = 'https://part-1-segundo-parcial-desarrollo-de-aplica
 const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim()
 const normalizedApiUrl = rawApiUrl.replace(/\/$/, '')
 const fallbackOrigin = typeof window !== 'undefined' ? window.location.origin : ''
+const sameOriginApi = fallbackOrigin ? `${fallbackOrigin}/api` : ''
 const API_BASE = normalizedApiUrl
   ? normalizedApiUrl.endsWith('/api') ? normalizedApiUrl : `${normalizedApiUrl}/api`
   : PRODUCTION_API_BASE
@@ -16,6 +17,7 @@ const API_BASE = normalizedApiUrl
 const localFallbackApi = fallbackOrigin.includes('localhost') ? `${fallbackOrigin}/api` : ''
 
 const API_BASE_CANDIDATES = Array.from(new Set([
+  sameOriginApi,
   API_BASE,
   localFallbackApi,
   PRODUCTION_API_BASE,
