@@ -51,10 +51,25 @@ async function apiRequest(path, { method = 'GET', token = '', body = null } = {}
       try { payload = text ? JSON.parse(text) : null } catch { payload = null }
 
       if (!res.ok) {
-        const detail = payload?.error || payload?.message || payload?.detail || payload?.title || res.statusText || 'Error inesperado'
+        const validationErrors = payload?.errors && typeof payload.errors === 'object'
+          ? Object.values(payload.errors).flat().filter(Boolean)
+          : []
+
+        const detail = validationErrors[0]
+          || payload?.error
+          || payload?.message
+          || payload?.detail
+          || payload?.title
+          || res.statusText
+          || 'Error inesperado'
+
         if (res.status >= 500 || res.status === 404 || res.status === 405) {
           lastError = new Error(`HTTP ${res.status} - ${detail}`)
           continue
+        }
+
+        if (res.status === 400) {
+          throw new Error('Datos inválidos. Verifica correo institucional y contraseña (mínimo 8 caracteres).')
         }
 
         throw new Error(`HTTP ${res.status} - ${detail}`)
@@ -311,11 +326,30 @@ export default function App() {
   const handleLogin = async e => {
     e.preventDefault()
     const esEstudiante = loginForm.rol === 'Estudiante'
+    const usuario = loginForm.usuario.trim()
+
     if (!loginForm.usuario.trim() || (!loginForm.contrasena.trim() && !esEstudiante)) {
       setLoginError(esEstudiante
         ? 'Ingresa tu cédula para continuar.'
         : 'Ingresa usuario y contraseña para continuar.')
       return
+    }
+
+    if (!esEstudiante) {
+      if (loginForm.rol === 'Analista MINERD' && !usuario.toLowerCase().endsWith('@minerd.gob.do')) {
+        setLoginError('Para Analista MINERD el correo debe terminar en @minerd.gob.do.')
+        return
+      }
+
+      if (loginForm.rol === 'Analista MESCYT' && !usuario.toLowerCase().endsWith('@mescyt.gob.do')) {
+        setLoginError('Para Analista MESCYT el correo debe terminar en @mescyt.gob.do.')
+        return
+      }
+
+      if (loginForm.contrasena.trim().length < 8) {
+        setLoginError('La contraseña debe tener al menos 8 caracteres.')
+        return
+      }
     }
 
     try {
@@ -324,14 +358,14 @@ export default function App() {
       if (esEstudiante) {
         response = await apiRequest('/Auth/login/estudiante', {
           method: 'POST',
-          body: { cedula: loginForm.usuario.trim() },
+          body: { cedula: usuario },
         })
       } else {
         response = await apiRequest('/Auth/login/analista', {
           method: 'POST',
           body: {
             rol: loginForm.rol,
-            correoInstitucional: loginForm.usuario.trim(),
+            correoInstitucional: usuario,
             password: loginForm.contrasena,
           },
         })
