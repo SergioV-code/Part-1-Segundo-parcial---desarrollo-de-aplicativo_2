@@ -134,7 +134,8 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
 var enableDbBootstrap = builder.Configuration.GetValue<bool?>("ENABLE_DB_BOOTSTRAP")
-    ?? !app.Environment.IsProduction();
+    ?? true;
+var bootstrapTimeoutSeconds = app.Environment.IsProduction() ? 8 : 30;
 
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 
@@ -148,11 +149,25 @@ if (enableDbBootstrap)
     using var scope = app.Services.CreateScope();
     try
     {
+        using var bootstrapCts = new CancellationTokenSource(TimeSpan.FromSeconds(bootstrapTimeoutSeconds));
         var context = scope.ServiceProvider.GetRequiredService<SchoolContext>();
-        context.Database.EnsureCreated();
 
-        var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
-        await AppDbSeeder.SeedAsync(context, passwordHasher);
+        var canConnect = await context.Database.CanConnectAsync(bootstrapCts.Token);
+        if (!canConnect)
+        {
+            startupLogger.LogWarning("No se pudo conectar a SQL durante bootstrap. La API inicia y reintentará en la siguiente inicialización.");
+        }
+        else
+        {
+            await context.Database.EnsureCreatedAsync(bootstrapCts.Token);
+
+            var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+            await AppDbSeeder.SeedAsync(context, passwordHasher, bootstrapCts.Token);
+        }
+    }
+    catch (OperationCanceledException)
+    {
+        startupLogger.LogWarning("Bootstrap de base de datos cancelado por timeout ({timeout}s). La API seguirá levantada.", bootstrapTimeoutSeconds);
     }
     catch (Exception ex)
     {
