@@ -24,6 +24,7 @@ const API_BASE_CANDIDATES = Array.from(new Set([
 ].filter(Boolean)))
 
 const API_REQUEST_TIMEOUT_MS = 12000
+const AUTH_REQUEST_TIMEOUT_MS = 22000
 
 // ─── HELPER CENTRALIZADO DE PETICIONES HTTP ────────────────────────────────────
 /**
@@ -740,14 +741,21 @@ export default function App() {
       setLoginError('')
 
       const authRequestWithTimeout = async requestPromise => {
-        return await Promise.race([
-          requestPromise,
-          new Promise((_, reject) => {
-            setTimeout(() => {
-              reject(new Error('No fue posible conectar con la API. Verifica que el backend de Railway esté activo y respondiendo (health endpoint).'))
-            }, 15000)
-          }),
-        ])
+        let timeoutId
+        try {
+          return await Promise.race([
+            requestPromise,
+            new Promise((_, reject) => {
+              timeoutId = setTimeout(() => {
+                reject(new Error('No fue posible conectar con la API. Verifica que el backend de Railway esté activo y respondiendo (health endpoint).'))
+              }, AUTH_REQUEST_TIMEOUT_MS)
+            }),
+          ])
+        } finally {
+          if (timeoutId) {
+            clearTimeout(timeoutId)
+          }
+        }
       }
 
       let response
