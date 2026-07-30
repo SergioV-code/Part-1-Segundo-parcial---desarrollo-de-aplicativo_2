@@ -133,6 +133,8 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+var enableDbBootstrap = builder.Configuration.GetValue<bool?>("ENABLE_DB_BOOTSTRAP")
+    ?? !app.Environment.IsProduction();
 
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 
@@ -141,8 +143,9 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
 
-using (var scope = app.Services.CreateScope())
+if (enableDbBootstrap)
 {
+    using var scope = app.Services.CreateScope();
     try
     {
         var context = scope.ServiceProvider.GetRequiredService<SchoolContext>();
@@ -155,6 +158,10 @@ using (var scope = app.Services.CreateScope())
     {
         startupLogger.LogError(ex, "Fallo durante inicialización de base de datos/seed. La API seguirá levantada para diagnóstico.");
     }
+}
+else
+{
+    startupLogger.LogInformation("Inicialización de base de datos deshabilitada en startup (ENABLE_DB_BOOTSTRAP=false). La API inicia sin bloquearse por SQL.");
 }
 
 if (app.Environment.IsDevelopment())
