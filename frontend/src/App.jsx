@@ -48,17 +48,26 @@ async function apiRequest(path, { method = 'GET', token = '', body = null } = {}
     let timeoutId
     try {
       const controller = new AbortController()
-      timeoutId = setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS)
 
-      const res = await fetch(url, {
-        method,
-        headers,
-        signal: controller.signal,
-        ...(body ? { body: JSON.stringify(body) } : {}),
+      const requestPromise = (async () => {
+        const res = await fetch(url, {
+          method,
+          headers,
+          signal: controller.signal,
+          ...(body ? { body: JSON.stringify(body) } : {}),
+        })
+        const text = await res.text()
+        return { res, text }
+      })()
+
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          controller.abort()
+          reject(new Error(`Timeout al conectar con ${base}`))
+        }, API_REQUEST_TIMEOUT_MS)
       })
-      clearTimeout(timeoutId)
 
-      const text = await res.text()
+      const { res, text } = await Promise.race([requestPromise, timeoutPromise])
       let payload = null
       try { payload = text ? JSON.parse(text) : null } catch { payload = null }
 
