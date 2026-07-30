@@ -127,8 +127,8 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
         policy
-            .AllowAnyOrigin()
-            .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+            .SetIsOriginAllowed(_ => true)
+            .AllowAnyMethod()
             .AllowAnyHeader());
 });
 
@@ -221,6 +221,31 @@ if (!app.Environment.IsProduction())
 {
     app.UseHttpsRedirection();
 }
+
+app.Use(async (context, next) =>
+{
+    var origin = context.Request.Headers.Origin.ToString();
+    if (!string.IsNullOrWhiteSpace(origin))
+    {
+        context.Response.Headers["Access-Control-Allow-Origin"] = origin;
+        context.Response.Headers["Vary"] = "Origin";
+    }
+    else
+    {
+        context.Response.Headers["Access-Control-Allow-Origin"] = "*";
+    }
+
+    context.Response.Headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
+    context.Response.Headers["Access-Control-Allow-Headers"] = "Authorization,Content-Type,Accept,Origin,X-Requested-With";
+
+    if (HttpMethods.IsOptions(context.Request.Method))
+    {
+        context.Response.StatusCode = StatusCodes.Status204NoContent;
+        return;
+    }
+
+    await next();
+});
 
 app.UseCors("AllowAll");
 
