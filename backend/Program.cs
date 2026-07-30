@@ -20,17 +20,44 @@ var sqlConnection =
 
 if (string.IsNullOrWhiteSpace(sqlConnection))
 {
-    throw new InvalidOperationException("No se encontró SQLSERVER_CONNECTION_STRING ni ConnectionStrings:DefaultConnection.");
+    sqlConnection = "Server=localhost,1433;Database=EdumetricsDR_Fallback;User Id=sa;Password=ChangeMe123!;TrustServerCertificate=True;Connection Timeout=5;";
+    Console.WriteLine("[Startup Warning] SQLSERVER_CONNECTION_STRING no configurada. Se usará una conexión fallback para mantener la API online.");
 }
 
-builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
-                 ?? throw new InvalidOperationException("La sección Jwt es obligatoria en la configuración.");
+                 ?? new JwtOptions();
 
 if (string.IsNullOrWhiteSpace(jwtOptions.Key) || jwtOptions.Key.Length < 32)
 {
-    throw new InvalidOperationException("Jwt:Key debe existir y tener al menos 32 caracteres.");
+    jwtOptions.Key = "EDUMETRICS_DR_FALLBACK_JWT_KEY_CHANGE_IN_PRODUCTION_2026";
+    Console.WriteLine("[Startup Warning] Jwt:Key ausente o inválida. Se usará una clave fallback temporal.");
 }
+
+if (string.IsNullOrWhiteSpace(jwtOptions.Issuer))
+{
+    jwtOptions.Issuer = "EDUMETRICS-DR";
+    Console.WriteLine("[Startup Warning] Jwt:Issuer no configurado. Se usará valor por defecto.");
+}
+
+if (string.IsNullOrWhiteSpace(jwtOptions.Audience))
+{
+    jwtOptions.Audience = "EDUMETRICS-DR-CLIENTS";
+    Console.WriteLine("[Startup Warning] Jwt:Audience no configurado. Se usará valor por defecto.");
+}
+
+if (jwtOptions.ExpirationMinutes <= 0)
+{
+    jwtOptions.ExpirationMinutes = 120;
+    Console.WriteLine("[Startup Warning] Jwt:ExpirationMinutes inválido. Se usará 120 minutos.");
+}
+
+builder.Services.Configure<JwtOptions>(options =>
+{
+    options.Key = jwtOptions.Key;
+    options.Issuer = jwtOptions.Issuer;
+    options.Audience = jwtOptions.Audience;
+    options.ExpirationMinutes = jwtOptions.ExpirationMinutes;
+});
 
 builder.Services.AddDbContext<SchoolContext>(options =>
     options.UseSqlServer(sqlConnection));
@@ -104,12 +131,9 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
 
-var port = Environment.GetEnvironmentVariable("PORT");
-if (!string.IsNullOrWhiteSpace(port))
-{
-    app.Urls.Add($"http://0.0.0.0:{port}");
-}
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
@@ -118,11 +142,18 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 
 using (var scope = app.Services.CreateScope())
 {
-    var context = scope.ServiceProvider.GetRequiredService<SchoolContext>();
-    context.Database.EnsureCreated();
+    try
+    {
+        var context = scope.ServiceProvider.GetRequiredService<SchoolContext>();
+        context.Database.EnsureCreated();
 
-    var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
-    await AppDbSeeder.SeedAsync(context, passwordHasher);
+        var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        await AppDbSeeder.SeedAsync(context, passwordHasher);
+    }
+    catch (Exception ex)
+    {
+        startupLogger.LogError(ex, "Fallo durante inicialización de base de datos/seed. La API seguirá levantada para diagnóstico.");
+    }
 }
 
 if (app.Environment.IsDevelopment())
@@ -172,6 +203,13 @@ app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapGet("/health", () => Results.Ok(new
+{
+    status = "ok",
+    service = "EDUMETRICS-DR API",
+    utc = DateTime.UtcNow
+}));
+
 app.MapControllers();
 
-app.Run();
+app.Run($"http://0.0.0.0:{port}");

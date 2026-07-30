@@ -4,9 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 const PRODUCTION_API_BASE = 'https://part-1-segundo-parcial-desarrollo-de-aplicativ-production.up.railway.app/api'
 const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim()
 const normalizedApiUrl = rawApiUrl.replace(/\/$/, '')
+const fallbackOrigin = typeof window !== 'undefined' ? window.location.origin : ''
 const API_BASE = normalizedApiUrl
   ? normalizedApiUrl.endsWith('/api') ? normalizedApiUrl : `${normalizedApiUrl}/api`
   : PRODUCTION_API_BASE
+
+const API_BASE_CANDIDATES = Array.from(new Set([
+  API_BASE,
+  fallbackOrigin ? `${fallbackOrigin}/api` : '',
+  PRODUCTION_API_BASE,
+].filter(Boolean)))
 
 // ─── HELPER CENTRALIZADO DE PETICIONES HTTP ────────────────────────────────────
 /**
@@ -21,37 +28,52 @@ const API_BASE = normalizedApiUrl
  * @returns {Promise<any>} – JSON parseado o null si sin body
  */
 async function apiRequest(path, { method = 'GET', token = '', body = null } = {}) {
-  const url = `${API_BASE}${path}`
   const headers = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(body ? { 'Content-Type': 'application/json' } : {}),
   }
-  let res
-  try {
-    res = await fetch(url, {
-      method,
-      headers,
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    })
-  } catch (networkError) {
-    const message = networkError?.message || ''
-    if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
-      throw new Error('No fue posible conectar con la API. El servidor puede estar iniciando en Railway o no estar disponible temporalmente.')
+
+  let lastError = null
+
+  for (const base of API_BASE_CANDIDATES) {
+    const url = `${base}${path}`
+    try {
+      const res = await fetch(url, {
+        method,
+        headers,
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      })
+
+      const text = await res.text()
+      let payload = null
+      try { payload = text ? JSON.parse(text) : null } catch { payload = null }
+
+      if (!res.ok) {
+        const detail = payload?.error || payload?.message || payload?.title || res.statusText || 'Error inesperado'
+        if (res.status >= 500 || res.status === 404 || res.status === 405) {
+          lastError = new Error(`HTTP ${res.status} - ${detail}`)
+          continue
+        }
+
+        throw new Error(`HTTP ${res.status} - ${detail}`)
+      }
+
+      return payload
+    } catch (error) {
+      const message = error?.message || ''
+      if (/HTTP 4\d\d/i.test(message)) {
+        throw error
+      }
+      lastError = error
     }
-
-    throw new Error(`Error de red: ${message || 'conexión no disponible'}`)
   }
 
-  const text = await res.text()
-  let payload = null
-  try { payload = text ? JSON.parse(text) : null } catch { payload = null }
-
-  if (!res.ok) {
-    const detail = payload?.error || payload?.title || res.statusText || 'Error inesperado'
-    throw new Error(`HTTP ${res.status} - ${detail}`)
+  const message = lastError?.message || ''
+  if (/Failed to fetch|NetworkError|Load failed|HTTP 5\d\d/i.test(message)) {
+    throw new Error('No fue posible conectar con la API. Verifica que el backend de Railway esté activo y respondiendo (health endpoint).')
   }
 
-  return payload
+  throw new Error(`Error de red: ${message || 'conexión no disponible'}`)
 }
 
 // ─── CONSTANTES ───────────────────────────────────────────────────────────────
