@@ -99,6 +99,7 @@ async function apiRequest(path, { method = 'GET', token = '', body = null } = {}
 // ─── CONSTANTES ───────────────────────────────────────────────────────────────
 const MOD_ACADEMICA = 'Modalidad Academica'
 const MOD_TECNICO   = 'Modalidad Tecnico Profesional'
+const MOD_PRIMARIA  = 'Modalidad Primaria'
 
 const TAB_INICIO     = 'Inicio'
 const TAB_GESTION    = 'Gestion de Expedientes'
@@ -178,13 +179,37 @@ const DEMO_BECAS = [
 
 const FALLBACK_EXPEDIENTES = Array.from({ length: 50 }, (_, idx) => {
   const i = idx + 1
+  const firstNames = [
+    'Adrian', 'Bianca', 'Camila', 'Dario', 'Elisa', 'Fabian', 'Grecia', 'Hector', 'Ines', 'Julian',
+    'Karla', 'Leandro', 'Mia', 'Nadia', 'Orlando', 'Paula', 'Quincy', 'Rita', 'Samuel', 'Tamara',
+    'Ulises', 'Valeria', 'Wendy', 'Xavier', 'Yadira', 'Zoe',
+  ]
+  const lastNames = [
+    'Arias', 'Beltre', 'Caceres', 'Delgado', 'Escobar', 'Franco', 'Guzman', 'Herrera', 'Ibarra', 'Jimenez',
+    'Lora', 'Montero', 'Navarro', 'Ortega', 'Pena', 'Quinones', 'Rojas', 'Suero', 'Tejada', 'Urena',
+    'Valdez', 'Wong', 'Ximenez', 'Yepez', 'Zamora',
+  ]
+  const centers = [
+    'Liceo Union Panamericana',
+    'Politecnico Loyola',
+    'Liceo Ramon Emilio Jimenez',
+    'Politecnico Nuestra Senora del Carmen',
+    'Liceo Miguel Canela Lazaro',
+    'Instituto Tecnico Salesiano',
+    'Liceo Juan Pablo Duarte',
+    'Politecnico Femenino Nuestra Senora de las Mercedes',
+    'Centro Educativo Maria Montez',
+    'Escuela Basica Juan Bosch',
+  ]
+  const modalities = [MOD_ACADEMICA, MOD_TECNICO, MOD_PRIMARIA]
+
   return {
     id: i,
-    nombre: `Estudiante Demo ${String(i).padStart(2, '0')}`,
+    nombre: `${firstNames[(i - 1) % firstNames.length]} ${lastNames[(i * 3) % lastNames.length]}`,
     cedula: `001-${String(i).padStart(7, '0')}-${i % 10}`,
     rne: `RNE-FE-${String(i).padStart(3, '0')}`,
-    centroEducativo: i % 2 === 0 ? 'Politecnico Loyola' : 'Liceo Union Panamericana',
-    modalidadAcademica: i % 2 === 0 ? MOD_TECNICO : MOD_ACADEMICA,
+    centroEducativo: centers[(i - 1) % centers.length],
+    modalidadAcademica: modalities[(i - 1) % modalities.length],
     distritoEducativo: `${String((i % 18) + 1).padStart(2, '0')}-01`,
     estado: 'Regular',
     tasaAsistencia: 80 + (i % 15),
@@ -197,6 +222,7 @@ function normalizeModalidad(value) {
   const text = (value ?? '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
   if (!text) return MOD_ACADEMICA
   if (text.includes('tecnico')) return MOD_TECNICO
+  if (text.includes('primaria')) return MOD_PRIMARIA
   return MOD_ACADEMICA
 }
 
@@ -798,10 +824,12 @@ export default function App() {
     const total     = students.length
     const academica = students.filter(s => normalizeModalidad(s.modalidadAcademica) === MOD_ACADEMICA).length
     const tecnico   = students.filter(s => normalizeModalidad(s.modalidadAcademica) === MOD_TECNICO).length
+    const primaria  = students.filter(s => normalizeModalidad(s.modalidadAcademica) === MOD_PRIMARIA).length
     return {
-      total, academica, tecnico,
+      total, academica, tecnico, primaria,
       pctAcademica: total > 0 ? Math.round((academica / total) * 100) : 0,
       pctTecnico:   total > 0 ? Math.round((tecnico   / total) * 100) : 0,
+      pctPrimaria:  total > 0 ? Math.round((primaria  / total) * 100) : 0,
     }
   }, [students])
 
@@ -889,8 +917,10 @@ export default function App() {
       { Indicador: 'Total expedientes', Valor: kpis.total },
       { Indicador: MOD_ACADEMICA, Valor: kpis.academica },
       { Indicador: MOD_TECNICO, Valor: kpis.tecnico },
+      { Indicador: MOD_PRIMARIA, Valor: kpis.primaria },
       { Indicador: '% Modalidad Academica', Valor: `${kpis.pctAcademica}%` },
       { Indicador: '% Modalidad Tecnico Profesional', Valor: `${kpis.pctTecnico}%` },
+      { Indicador: '% Modalidad Primaria', Valor: `${kpis.pctPrimaria}%` },
       { Indicador: 'Fecha exportacion', Valor: exportDateLabel() },
     ])
 
@@ -919,6 +949,7 @@ export default function App() {
         ['Total expedientes', String(kpis.total)],
         [MOD_ACADEMICA, `${kpis.academica} (${kpis.pctAcademica}%)`],
         [MOD_TECNICO, `${kpis.tecnico} (${kpis.pctTecnico}%)`],
+        [MOD_PRIMARIA, `${kpis.primaria} (${kpis.pctPrimaria}%)`],
       ],
       styles: { fontSize: 9 },
       headStyles: { fillColor: [7, 89, 133] },
@@ -1191,6 +1222,7 @@ export default function App() {
                 className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
                 <option value={MOD_ACADEMICA}>{MOD_ACADEMICA}</option>
                 <option value={MOD_TECNICO}>{MOD_TECNICO}</option>
+                <option value={MOD_PRIMARIA}>{MOD_PRIMARIA}</option>
               </select>
             </label>
             <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
@@ -1225,9 +1257,10 @@ export default function App() {
                   : 'Panel de gestión de egresados y matriculados en instituciones de educación superior reguladas por MESCYT.'}
               </p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-4">
               {loading ? (
                 <>
+                  <KpiSkeleton />
                   <KpiSkeleton />
                   <KpiSkeleton />
                   <KpiSkeleton />
@@ -1240,6 +1273,8 @@ export default function App() {
                     colorBorder="border-cyan-200" colorBg="bg-cyan-50" colorText="text-cyan-700" colorValue="text-cyan-900" />
                   <KpiCard label={MOD_TECNICO} value={kpis.tecnico}
                     colorBorder="border-emerald-200" colorBg="bg-emerald-50" colorText="text-emerald-700" colorValue="text-emerald-900" />
+                  <KpiCard label={MOD_PRIMARIA} value={kpis.primaria}
+                    colorBorder="border-amber-200" colorBg="bg-amber-50" colorText="text-amber-700" colorValue="text-amber-900" />
                 </>
               )}
             </div>
@@ -1313,6 +1348,7 @@ export default function App() {
                   <option value="Todos">Todas las modalidades</option>
                   <option value={MOD_ACADEMICA}>{MOD_ACADEMICA}</option>
                   <option value={MOD_TECNICO}>{MOD_TECNICO}</option>
+                  <option value={MOD_PRIMARIA}>{MOD_PRIMARIA}</option>
                 </select>
               </label>
             </div>
@@ -1353,7 +1389,10 @@ export default function App() {
                         <td className="border-b border-slate-100 px-4 py-3">
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                             normalizeModalidad(student.modalidadAcademica) === MOD_TECNICO
-                              ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : normalizeModalidad(student.modalidadAcademica) === MOD_PRIMARIA
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-blue-100 text-blue-800'
                           }`}>
                             {normalizeModalidad(student.modalidadAcademica)}
                           </span>
@@ -1409,7 +1448,8 @@ export default function App() {
             </div>
             {loading ? (
               <>
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-4">
+                  <KpiSkeleton />
                   <KpiSkeleton />
                   <KpiSkeleton />
                   <KpiSkeleton />
@@ -1419,18 +1459,21 @@ export default function App() {
               </>
             ) : (
               <>
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-4">
                   <KpiCard label="Total expedientes" value={kpis.total}
                     colorBorder="border-blue-200" colorBg="bg-blue-50" colorText="text-blue-600" colorValue="text-blue-900" />
                   <KpiCard label={MOD_ACADEMICA} value={kpis.academica}
                     colorBorder="border-cyan-200" colorBg="bg-cyan-50" colorText="text-cyan-600" colorValue="text-cyan-900" />
                   <KpiCard label={MOD_TECNICO} value={kpis.tecnico}
                     colorBorder="border-emerald-200" colorBg="bg-emerald-50" colorText="text-emerald-600" colorValue="text-emerald-900" />
+                  <KpiCard label={MOD_PRIMARIA} value={kpis.primaria}
+                    colorBorder="border-amber-200" colorBg="bg-amber-50" colorText="text-amber-600" colorValue="text-amber-900" />
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
                   <p className="text-sm font-semibold text-slate-700">Distribución por modalidad educativa</p>
                   <ProgressBar label={MOD_ACADEMICA} value={kpis.academica} pct={kpis.pctAcademica} colorBar="bg-blue-600" />
                   <ProgressBar label={MOD_TECNICO}   value={kpis.tecnico}   pct={kpis.pctTecnico}   colorBar="bg-emerald-600" />
+                  <ProgressBar label={MOD_PRIMARIA}  value={kpis.primaria}  pct={kpis.pctPrimaria}  colorBar="bg-amber-600" />
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
                   <p className="text-sm font-semibold text-slate-700">Distribución por centro educativo</p>
@@ -1554,7 +1597,10 @@ export default function App() {
                   </p>
                   <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
                     normalizeModalidad(studentProfile?.modalidadAcademica) === MOD_TECNICO
-                      ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : normalizeModalidad(studentProfile?.modalidadAcademica) === MOD_PRIMARIA
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-blue-100 text-blue-800'
                   }`}>
                     {normalizeModalidad(studentProfile?.modalidadAcademica)}
                   </span>

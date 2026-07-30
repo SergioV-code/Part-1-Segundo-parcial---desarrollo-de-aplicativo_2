@@ -33,43 +33,54 @@ public static class AppDbSeeder
             plainPassword: mescytPassword,
             cancellationToken);
 
+        var now = DateTime.UtcNow;
+        var firstNames = new[]
+        {
+            "Adrian", "Bianca", "Camila", "Dario", "Elisa", "Fabian", "Grecia", "Hector", "Ines", "Julian",
+            "Karla", "Leandro", "Mia", "Nadia", "Orlando", "Paula", "Quincy", "Rita", "Samuel", "Tamara",
+            "Ulises", "Valeria", "Wendy", "Xavier", "Yadira", "Zoe"
+        };
+
+        var lastNames = new[]
+        {
+            "Arias", "Beltre", "Caceres", "Delgado", "Escobar", "Franco", "Guzman", "Herrera", "Ibarra", "Jimenez",
+            "Lora", "Montero", "Navarro", "Ortega", "Pena", "Quinones", "Rojas", "Suero", "Tejada", "Urena",
+            "Valdez", "Wong", "Ximenez", "Yepez", "Zamora"
+        };
+
+        var centers = new[]
+        {
+            "Liceo Union Panamericana",
+            "Politecnico Loyola",
+            "Liceo Ramon Emilio Jimenez",
+            "Politecnico Nuestra Senora del Carmen",
+            "Liceo Miguel Canela Lazaro",
+            "Instituto Tecnico Salesiano",
+            "Liceo Juan Pablo Duarte",
+            "Politecnico Femenino Nuestra Senora de las Mercedes",
+            "Centro Educativo Maria Montez",
+            "Escuela Basica Juan Bosch",
+        };
+
+        var modalities = new[]
+        {
+            "Modalidad Academica",
+            "Modalidad Tecnico Profesional",
+            "Modalidad Primaria",
+        };
+
+        var districts = new[] { "01-01", "02-03", "03-02", "04-01", "05-01", "06-02", "07-01", "08-03", "09-02", "10-01" };
+
         var currentStudentCount = await context.Students.CountAsync(cancellationToken);
         if (currentStudentCount < 50)
         {
-            var now = DateTime.UtcNow;
-            var firstNames = new[]
-            {
-                "Ana", "Carlos", "María", "José", "Luis", "Carmen", "Miguel", "Elena", "David", "Paola",
-                "Jorge", "Lucía", "Andrés", "Yolanda", "Pedro", "Noelia", "Rafael", "Sofía", "Manuel", "Gabriela"
-            };
-
-            var lastNames = new[]
-            {
-                "Pérez", "Gómez", "Rodríguez", "Santos", "Reyes", "Martínez", "Fernández", "Núñez", "López", "Castillo",
-                "Méndez", "García", "Ramírez", "Torres", "Medina", "Vásquez", "Hernández", "Bautista", "Morillo", "Almonte"
-            };
-
-            var centers = new[]
-            {
-                "Liceo Union Panamericana",
-                "Politecnico Loyola",
-                "Liceo Ramon Emilio Jimenez",
-                "Politecnico Nuestra Senora del Carmen",
-                "Liceo Miguel Canela Lazaro",
-                "Instituto Tecnico Salesiano",
-                "Liceo Juan Pablo Duarte",
-                "Politecnico Femenino Nuestra Senora de las Mercedes",
-            };
-
-            var districts = new[] { "01-01", "02-03", "03-02", "04-01", "05-01", "06-02", "07-01", "08-03", "09-02", "10-01" };
-
             var students = Enumerable.Range(currentStudentCount + 1, 50 - currentStudentCount).Select(i => new Student
             {
                 Nombre = $"{firstNames[(i - 1) % firstNames.Length]} {lastNames[(i * 3) % lastNames.Length]}",
                 Cedula = $"001-{i:0000000}-{i % 10}",
                 Rne = $"RNE-SEED-{i:0000}",
                 CentroEducativo = centers[(i - 1) % centers.Length],
-                ModalidadAcademica = i % 2 == 0 ? "Modalidad Tecnico Profesional" : "Modalidad Academica",
+                ModalidadAcademica = modalities[(i - 1) % modalities.Length],
                 DistritoEducativo = districts[(i - 1) % districts.Length],
                 Estado = "Regular",
                 TasaAsistencia = 78 + (i % 22),
@@ -81,6 +92,27 @@ public static class AppDbSeeder
             });
 
             context.Students.AddRange(students);
+        }
+
+        // Anonimiza y normaliza todos los registros existentes para consistencia en ambientes de prueba.
+        var allStudents = await context.Students
+            .OrderBy(s => s.Id)
+            .ToListAsync(cancellationToken);
+
+        for (var index = 0; index < allStudents.Count; index++)
+        {
+            var student = allStudents[index];
+            var sequence = index + 1;
+
+            student.Nombre = $"{firstNames[index % firstNames.Length]} {lastNames[(index * 3) % lastNames.Length]}";
+            student.CentroEducativo = centers[index % centers.Length];
+            student.ModalidadAcademica = modalities[index % modalities.Length];
+            student.DistritoEducativo = districts[index % districts.Length];
+            student.Rne = $"RNE-SEED-{sequence:0000}";
+            student.Estado = string.IsNullOrWhiteSpace(student.Estado) ? "Regular" : student.Estado;
+            student.TasaAsistencia = 78 + (sequence % 22);
+            student.PromedioGeneral = 68 + (sequence % 30);
+            student.FechaActualizacion = now;
         }
 
         await context.SaveChangesAsync(cancellationToken);

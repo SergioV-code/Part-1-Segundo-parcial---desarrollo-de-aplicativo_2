@@ -74,15 +74,47 @@ public class StudentService
     private static List<Student> BuildFallbackStudents()
     {
         var now = DateTime.UtcNow;
+        var firstNames = new[]
+        {
+            "Adrian", "Bianca", "Camila", "Dario", "Elisa", "Fabian", "Grecia", "Hector", "Ines", "Julian",
+            "Karla", "Leandro", "Mia", "Nadia", "Orlando", "Paula", "Quincy", "Rita", "Samuel", "Tamara",
+            "Ulises", "Valeria", "Wendy", "Xavier", "Yadira", "Zoe"
+        };
+        var lastNames = new[]
+        {
+            "Arias", "Beltre", "Caceres", "Delgado", "Escobar", "Franco", "Guzman", "Herrera", "Ibarra", "Jimenez",
+            "Lora", "Montero", "Navarro", "Ortega", "Pena", "Quinones", "Rojas", "Suero", "Tejada", "Urena",
+            "Valdez", "Wong", "Ximenez", "Yepez", "Zamora"
+        };
+        var centers = new[]
+        {
+            "Liceo Union Panamericana",
+            "Politecnico Loyola",
+            "Liceo Ramon Emilio Jimenez",
+            "Politecnico Nuestra Senora del Carmen",
+            "Liceo Miguel Canela Lazaro",
+            "Instituto Tecnico Salesiano",
+            "Liceo Juan Pablo Duarte",
+            "Politecnico Femenino Nuestra Senora de las Mercedes",
+            "Centro Educativo Maria Montez",
+            "Escuela Basica Juan Bosch",
+        };
+        var modalities = new[]
+        {
+            "Modalidad Academica",
+            "Modalidad Tecnico Profesional",
+            "Modalidad Primaria",
+        };
+
         return Enumerable.Range(1, 50).Select(i => new Student
         {
             Id = i,
-            Nombre = $"Estudiante Demo {i:000}",
+            Nombre = $"{firstNames[(i - 1) % firstNames.Length]} {lastNames[(i * 3) % lastNames.Length]}",
             Cedula = $"001-{i:0000000}-{i % 10}",
             Rne = $"RNE-FALLBACK-{i:0000}",
             DistritoEducativo = $"{(i % 18) + 1:00}-01",
-            ModalidadAcademica = i % 2 == 0 ? "Modalidad Tecnico Profesional" : "Modalidad Academica",
-            CentroEducativo = i % 2 == 0 ? "Politecnico Loyola" : "Liceo Union Panamericana",
+            ModalidadAcademica = modalities[(i - 1) % modalities.Length],
+            CentroEducativo = centers[(i - 1) % centers.Length],
             Estado = "Regular",
             TasaAsistencia = 80 + (i % 15),
             PromedioGeneral = 72 + (i % 20),
