@@ -17,21 +17,17 @@ export async function onRequest(context) {
   const url = new URL(request.url)
   const target = buildTargetUrl(env?.BACKEND_API_BASE, pathSuffix, url.search)
 
-  const headers = new Headers(request.headers)
-  headers.delete('host')
-
-  const init = {
-    method: request.method,
-    headers,
-    redirect: 'follow',
-  }
-
-  if (!['GET', 'HEAD'].includes(request.method.toUpperCase())) {
-    init.body = request.body
-  }
-
   try {
-    const upstream = await fetch(target, init)
+    const incoming = new Request(target, request)
+    const headers = new Headers(incoming.headers)
+    headers.delete('host')
+
+    const forwarded = new Request(incoming, {
+      headers,
+      redirect: 'follow',
+    })
+
+    const upstream = await fetch(forwarded)
     return new Response(upstream.body, {
       status: upstream.status,
       statusText: upstream.statusText,
