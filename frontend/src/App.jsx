@@ -726,29 +726,41 @@ export default function App() {
     try {
       setAuthSubmitting(true)
       setLoginError('')
+
+      const authRequestWithTimeout = async requestPromise => {
+        return await Promise.race([
+          requestPromise,
+          new Promise((_, reject) => {
+            setTimeout(() => {
+              reject(new Error('No fue posible conectar con la API. Verifica que el backend de Railway esté activo y respondiendo (health endpoint).'))
+            }, 15000)
+          }),
+        ])
+      }
+
       let response
       if (esEstudiante) {
-        response = await apiRequest('/Auth/login/estudiante', {
+        response = await authRequestWithTimeout(apiRequest('/Auth/login/estudiante', {
           method: 'POST',
           body: { cedula: formatCedula(usuario) },
-        })
+        }))
       } else if (esAdministrador) {
-        response = await apiRequest('/Auth/login/administrador', {
+        response = await authRequestWithTimeout(apiRequest('/Auth/login/administrador', {
           method: 'POST',
           body: {
             correoInstitucional: usuario,
             password: contrasena,
           },
-        })
+        }))
       } else {
-        response = await apiRequest('/Auth/login/analista', {
+        response = await authRequestWithTimeout(apiRequest('/Auth/login/analista', {
           method: 'POST',
           body: {
             rol: loginForm.rol,
             correoInstitucional: usuario,
             password: contrasena,
           },
-        })
+        }))
       }
 
       if (!response?.token) {
