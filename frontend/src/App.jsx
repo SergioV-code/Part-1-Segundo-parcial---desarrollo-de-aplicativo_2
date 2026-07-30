@@ -173,7 +173,7 @@ const DEMO_BECAS = [
   },
 ]
 
-const FALLBACK_EXPEDIENTES = Array.from({ length: 20 }, (_, idx) => {
+const FALLBACK_EXPEDIENTES = Array.from({ length: 50 }, (_, idx) => {
   const i = idx + 1
   return {
     id: i,
@@ -409,7 +409,7 @@ export default function App() {
     } catch (e) {
       if (/No fue posible conectar con la API/i.test(e.message || '')) {
         setStudents(FALLBACK_EXPEDIENTES)
-        setDataError('Backend no disponible. Mostrando 20 expedientes de contingencia.')
+        setDataError('Backend no disponible. Mostrando 50 expedientes de contingencia.')
         setContingencyMode(true)
       } else {
         setDataError(e.message || 'Error de conexión')
