@@ -36,17 +36,43 @@ public static class AppDbSeeder
         if (!await context.Students.AnyAsync(cancellationToken))
         {
             var now = DateTime.UtcNow;
-            var students = Enumerable.Range(1, 20).Select(i => new Student
+            var firstNames = new[]
             {
-                Nombre = $"Estudiante {i:00}",
+                "Ana", "Carlos", "María", "José", "Luis", "Carmen", "Miguel", "Elena", "David", "Paola",
+                "Jorge", "Lucía", "Andrés", "Yolanda", "Pedro", "Noelia", "Rafael", "Sofía", "Manuel", "Gabriela"
+            };
+
+            var lastNames = new[]
+            {
+                "Pérez", "Gómez", "Rodríguez", "Santos", "Reyes", "Martínez", "Fernández", "Núñez", "López", "Castillo",
+                "Méndez", "García", "Ramírez", "Torres", "Medina", "Vásquez", "Hernández", "Bautista", "Morillo", "Almonte"
+            };
+
+            var centers = new[]
+            {
+                "Liceo Union Panamericana",
+                "Politecnico Loyola",
+                "Liceo Ramon Emilio Jimenez",
+                "Politecnico Nuestra Senora del Carmen",
+                "Liceo Miguel Canela Lazaro",
+                "Instituto Tecnico Salesiano",
+                "Liceo Juan Pablo Duarte",
+                "Politecnico Femenino Nuestra Senora de las Mercedes",
+            };
+
+            var districts = new[] { "01-01", "02-03", "03-02", "04-01", "05-01", "06-02", "07-01", "08-03", "09-02", "10-01" };
+
+            var students = Enumerable.Range(1, 50).Select(i => new Student
+            {
+                Nombre = $"{firstNames[(i - 1) % firstNames.Length]} {lastNames[(i * 3) % lastNames.Length]}",
                 Cedula = $"001-{i:0000000}-{i % 10}",
-                Rne = $"RNE-SEED-{i:000}",
-                CentroEducativo = i % 2 == 0 ? "Politecnico Loyola" : "Liceo Union Panamericana",
+                Rne = $"RNE-SEED-{i:0000}",
+                CentroEducativo = centers[(i - 1) % centers.Length],
                 ModalidadAcademica = i % 2 == 0 ? "Modalidad Tecnico Profesional" : "Modalidad Academica",
-                DistritoEducativo = $"{(i % 18) + 1:00}-01",
+                DistritoEducativo = districts[(i - 1) % districts.Length],
                 Estado = "Regular",
-                TasaAsistencia = 80 + (i % 20),
-                PromedioGeneral = 70 + (i % 25),
+                TasaAsistencia = 78 + (i % 22),
+                PromedioGeneral = 68 + (i % 30),
                 EstadoBecaMescyt = "No Aplica",
                 ProtocoloArquitectura = "Sincronizacion pendiente",
                 FechaCreacion = now,

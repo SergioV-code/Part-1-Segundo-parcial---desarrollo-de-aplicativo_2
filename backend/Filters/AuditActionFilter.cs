@@ -43,8 +43,10 @@ public class AuditActionFilter : IAsyncActionFilter
         }
 
         var user = context.HttpContext.User;
-        var usuario = user.Identity?.Name
-                      ?? user.FindFirstValue(ClaimTypes.Name)
+        var usuario = user.FindFirstValue("email")
+                  ?? user.FindFirstValue(ClaimTypes.Email)
+                  ?? user.Identity?.Name
+                  ?? user.FindFirstValue(ClaimTypes.Name)
                       ?? user.FindFirstValue(ClaimTypes.NameIdentifier)
                       ?? "anonimo";
 

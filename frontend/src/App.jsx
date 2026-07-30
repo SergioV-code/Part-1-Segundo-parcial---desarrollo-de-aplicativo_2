@@ -235,6 +235,40 @@ function isValidCedula(value) {
   return normalizeCedula(value).length === 11
 }
 
+function decodeJwtPayload(token) {
+  if (!token || typeof token !== 'string' || !token.includes('.')) return null
+  try {
+    const base64Url = token.split('.')[1]
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+    const json = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => `%${c.charCodeAt(0).toString(16).padStart(2, '0')}`)
+        .join(''),
+    )
+    return JSON.parse(json)
+  } catch {
+    return null
+  }
+}
+
+function resolveAuditUserFromToken(token, role, fallbackUserInput) {
+  const payload = decodeJwtPayload(token)
+  const emailClaim = payload?.email || payload?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress']
+  if (emailClaim) {
+    return sanitizeInstitutionalUser(String(emailClaim))
+  }
+
+  if (role === 'Estudiante') {
+    const cedulaClaim = payload?.cedula || payload?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/sid']
+    if (cedulaClaim) {
+      return formatCedula(String(cedulaClaim))
+    }
+  }
+
+  return (fallbackUserInput || '').trim()
+}
+
 function validateExpedienteForm(form, students, editingId) {
   const nombre = (form.nombre || '').trim()
   const centro = (form.centroEducativo || '').trim()
@@ -323,6 +357,7 @@ export default function App() {
   const [loginForm, setLoginForm]             = useState({ usuario: '', contrasena: '', rol: ROLES[0] })
   const [loginError, setLoginError]           = useState('')
   const [contingencyMode, setContingencyMode] = useState(false)
+  const [sessionAuditUser, setSessionAuditUser] = useState('')
 
   // Navegación
   const [activeTab, setActiveTab] = useState(TAB_INICIO)
@@ -351,11 +386,12 @@ export default function App() {
   const [studentProfileData, setStudentProfileData] = useState(null)
 
   // ── Auditoría helper ────────────────────────────────────────────────────────
-  const pushAudit = useCallback((accion, detalles, rol) =>
+  const pushAudit = useCallback((accion, detalles, rol, usuario) =>
     setAuditLogs(prev => [{
       id:      `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       fecha:   new Date().toISOString(),
-      usuario: rol,
+      usuario: (usuario || '').trim() || 'anonimo',
+      rol,
       accion,
       detalles,
     }, ...prev]), [])
@@ -472,14 +508,21 @@ export default function App() {
       }
 
       const rol = response.rol || loginForm.rol
+      const auditUser = resolveAuditUserFromToken(
+        response.token,
+        rol,
+        esEstudiante ? formatCedula(usuario) : usuario,
+      )
       setAuthToken(response.token)
       setIsAuthenticated(true)
       setActiveRole(rol)
+      setSessionAuditUser(auditUser)
       setActiveTab(isGov(rol) ? TAB_INICIO : TAB_PERFIL)
       pushAudit(
         'SESION_INICIO',
         `${esEstudiante ? 'Estudiante cédula' : 'Usuario'} ${loginForm.usuario.trim()} inició sesión como ${rol}`,
         rol,
+        auditUser,
       )
     } catch (error) {
       const message = error?.message || 'No fue posible iniciar sesión.'
@@ -492,11 +535,12 @@ export default function App() {
           setAuthToken('contingency-token')
           setIsAuthenticated(true)
           setActiveRole(loginForm.rol)
+          setSessionAuditUser(usuario)
           setActiveTab(TAB_INICIO)
           setContingencyMode(true)
           setStudents(FALLBACK_EXPEDIENTES)
           setDataError('Backend no disponible. Sesión iniciada en modo contingencia con datos locales.')
-          pushAudit('SESION_INICIO', `Inicio de sesión en contingencia para ${usuario} (${loginForm.rol})`, loginForm.rol)
+          pushAudit('SESION_INICIO', `Inicio de sesión en contingencia para ${usuario} (${loginForm.rol})`, loginForm.rol, usuario)
           return
         }
       }
@@ -510,6 +554,7 @@ export default function App() {
     setLoginForm({ usuario: '', contrasena: '', rol: ROLES[0] })
     setLoginError('')
     setAuthToken('')
+    setSessionAuditUser('')
     setContingencyMode(false)
     setStudents([])
     setStudentProfileData(null)
@@ -577,7 +622,7 @@ export default function App() {
               }
             : s,
         ))
-        pushAudit('ACTUALIZAR', `Contingencia: expediente actualizado ${cleanCedula}`, activeRole)
+        pushAudit('ACTUALIZAR', `Contingencia: expediente actualizado ${cleanCedula}`, activeRole, sessionAuditUser)
         setFormSuccess('Expediente actualizado en modo contingencia.')
       } else {
         const nextId = students.reduce((maxId, item) => Math.max(maxId, Number(item.id) || 0), 0) + 1
@@ -595,7 +640,7 @@ export default function App() {
           fechaCreacion: new Date().toISOString(),
           fechaActualizacion: new Date().toISOString(),
         }, ...prev])
-        pushAudit('CREAR', `Contingencia: expediente creado ${cleanCedula}`, activeRole)
+        pushAudit('CREAR', `Contingencia: expediente creado ${cleanCedula}`, activeRole, sessionAuditUser)
         setFormSuccess('Expediente agregado en modo contingencia.')
       }
 
@@ -618,7 +663,7 @@ export default function App() {
           fechaActualizacion: new Date().toISOString(),
         }
         await apiRequest(`/ChangeExampleData/${editingId}`, { method: 'PUT', token: authToken, body: payload })
-        pushAudit('ACTUALIZAR', `Usuario [${activeRole}] modificó expediente cédula ${cleanCedula}`, activeRole)
+        pushAudit('ACTUALIZAR', `Usuario [${activeRole}] modificó expediente cédula ${cleanCedula}`, activeRole, sessionAuditUser)
         setFormSuccess('Expediente actualizado correctamente.')
       } else {
         const payload = {
@@ -629,7 +674,7 @@ export default function App() {
           rne:                `RNE-${Date.now()}`,
         }
         await apiRequest('/CreateExample', { method: 'POST', token: authToken, body: payload })
-        pushAudit('CREAR', `Usuario [${activeRole}] creó registro para cédula ${cleanCedula}`, activeRole)
+        pushAudit('CREAR', `Usuario [${activeRole}] creó registro para cédula ${cleanCedula}`, activeRole, sessionAuditUser)
         setFormSuccess('Expediente registrado correctamente.')
       }
 
@@ -648,14 +693,14 @@ export default function App() {
 
     if (contingencyMode) {
       setStudents(prev => prev.filter(s => s.id !== id))
-      pushAudit('ELIMINAR', `Contingencia: expediente eliminado id ${id}`, activeRole)
+      pushAudit('ELIMINAR', `Contingencia: expediente eliminado id ${id}`, activeRole, sessionAuditUser)
       return
     }
 
     try {
       setDeletingId(id)
       await apiRequest(`/DeleteExample/${id}`, { method: 'DELETE', token: authToken })
-      pushAudit('ELIMINAR', `Usuario [${activeRole}] eliminó expediente id ${id}`, activeRole)
+      pushAudit('ELIMINAR', `Usuario [${activeRole}] eliminó expediente id ${id}`, activeRole, sessionAuditUser)
       await fetchStudents(authToken)
     } catch (e) {
       setFormError(`No se pudo eliminar: ${e.message || 'Error desconocido'}`)
@@ -1125,7 +1170,8 @@ export default function App() {
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3 font-semibold text-slate-700">Fecha y Hora</th>
-                    <th className="px-4 py-3 font-semibold text-slate-700">Usuario (Rol)</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700">Usuario</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700">Rol</th>
                     <th className="px-4 py-3 font-semibold text-slate-700">Acción</th>
                     <th className="px-4 py-3 font-semibold text-slate-700">Detalles</th>
                   </tr>
@@ -1133,7 +1179,7 @@ export default function App() {
                 <tbody>
                   {auditLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-4 py-10 text-center text-slate-500">
+                      <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
                         No hay eventos registrados en esta sesión.
                       </td>
                     </tr>
@@ -1149,6 +1195,7 @@ export default function App() {
                         <tr key={log.id} className="hover:bg-slate-50 border-b border-slate-100 transition-colors">
                           <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{fmt(log.fecha)}</td>
                           <td className="px-4 py-3 font-medium text-slate-700">{log.usuario}</td>
+                          <td className="px-4 py-3 text-slate-700">{log.rol || activeRole}</td>
                           <td className="px-4 py-3">
                             <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${accionColor}`}>
                               {log.accion}
