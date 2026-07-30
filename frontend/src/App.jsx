@@ -641,9 +641,9 @@ export default function App() {
         : [])
       setContingencyMode(false)
     } catch (e) {
-      if (/No fue posible conectar con la API|HTTP 401/i.test(e.message || '')) {
+      if (/No fue posible conectar con la API|HTTP 401|HTTP 502|HTTP 503|HTTP 504|Timeout/i.test(e.message || '')) {
         setStudents(FALLBACK_EXPEDIENTES)
-        setDataError('Backend no disponible. Sesión iniciada en modo contingencia con datos locales.')
+        setDataError('')
         setContingencyMode(true)
       } else {
         setDataError(e.message || 'Error de conexión')
