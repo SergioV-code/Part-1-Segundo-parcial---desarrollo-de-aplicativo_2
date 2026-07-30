@@ -33,7 +33,7 @@ namespace EDUMETRICS_DR.Data
 
                 entity.ToTable(t => t.HasCheckConstraint(
                     "CK_Users_Rol",
-                    "[Rol] IN ('Estudiante', 'Analista MINERD', 'Analista MESCYT')"
+                    "[Rol] IN ('Estudiante', 'Analista MINERD', 'Analista MESCYT', 'Administrador')"
                 ));
             });
 

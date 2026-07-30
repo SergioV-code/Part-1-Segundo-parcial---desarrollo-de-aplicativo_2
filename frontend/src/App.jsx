@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import * as XLSX from 'xlsx'
 
 // ─── API BASE ──────────────────────────────────────────────────────────────────
@@ -72,7 +73,11 @@ async function apiRequest(path, { method = 'GET', token = '', body = null } = {}
         }
 
         if (res.status === 400) {
-          throw new Error('Datos inválidos. Verifica correo institucional y contraseña (mínimo 8 caracteres).')
+          throw new Error(
+            path.startsWith('/Auth/login')
+              ? 'Datos inválidos. Verifica correo institucional y contraseña (mínimo 8 caracteres).'
+              : detail,
+          )
         }
 
         throw new Error(`HTTP ${res.status} - ${detail}`)
@@ -106,21 +111,26 @@ const TAB_GESTION    = 'Gestion de Expedientes'
 const TAB_FORMULARIO = 'Formulario de Registro'
 const TAB_REPORTES   = 'Reportes Empresariales'
 const TAB_AUDITORIA  = 'Registro de Auditoria'
+const TAB_USUARIOS   = 'Administracion de Usuarios'
 const GOV_TABS = [TAB_INICIO, TAB_GESTION, TAB_FORMULARIO, TAB_REPORTES, TAB_AUDITORIA]
+const ADMIN_TABS = [...GOV_TABS, TAB_USUARIOS]
 
 const TAB_PERFIL = 'Mi Perfil'
 const TAB_PENSUM = 'Mi Pensum'
 const TAB_BECAS  = 'Oportunidades y Becas'
 const STU_TABS   = [TAB_PERFIL, TAB_PENSUM, TAB_BECAS]
 
-const ROLES = ['Analista MINERD', 'Analista MESCYT', 'Estudiante']
+const ROLES = ['Analista MINERD', 'Analista MESCYT', 'Estudiante', 'Administrador']
 const ROL_COLORS = {
   'Analista MINERD': { bg: '#0f3a7a', badge: 'bg-blue-100 text-blue-900' },
   'Analista MESCYT': { bg: '#075985', badge: 'bg-cyan-100 text-cyan-900' },
   'Estudiante':      { bg: '#166534', badge: 'bg-emerald-100 text-emerald-900' },
+  'Administrador':   { bg: '#4c1d95', badge: 'bg-violet-100 text-violet-900' },
 }
 
 const isGov = rol => rol === 'Analista MINERD' || rol === 'Analista MESCYT'
+const isAdmin = rol => rol === 'Administrador'
+const canBackoffice = rol => isGov(rol) || isAdmin(rol)
 
 // Datos de demo para la vista estudiantil
 const DEMO_PENSUM = [
@@ -296,6 +306,19 @@ function decodeJwtPayload(token) {
   }
 }
 
+function getModalidadBadgeClasses(modalidad) {
+  if (modalidad === MOD_TECNICO) return 'bg-emerald-100 text-emerald-800'
+  if (modalidad === MOD_PRIMARIA) return 'bg-amber-100 text-amber-800'
+  return 'bg-blue-100 text-blue-800'
+}
+
+function getUserRoleBadgeClasses(role) {
+  if (role === 'Administrador') return 'bg-violet-100 text-violet-800'
+  if (role === 'Analista MINERD') return 'bg-blue-100 text-blue-800'
+  if (role === 'Analista MESCYT') return 'bg-cyan-100 text-cyan-800'
+  return 'bg-emerald-100 text-emerald-800'
+}
+
 function resolveAuditUserFromToken(token, role, fallbackUserInput) {
   const payload = decodeJwtPayload(token)
   const emailClaim = payload?.email || payload?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress']
@@ -341,6 +364,46 @@ function validateExpedienteForm(form, students, editingId) {
 
   if (duplicated) {
     return 'Ya existe un expediente con esa cédula.'
+  }
+
+  return ''
+}
+
+function validateAccessUserForm(form, isEditing) {
+  const role = (form.rol || '').trim()
+  const nombre = (form.nombreCompleto || '').trim()
+  const correo = sanitizeInstitutionalUser(form.correoInstitucional)
+  const password = (form.password || '').trim()
+
+  if (nombre.length < 3) {
+    return 'El nombre completo debe tener al menos 3 caracteres.'
+  }
+
+  if (role === 'Estudiante') {
+    if (!isValidCedula(form.cedula)) {
+      return 'La cédula del estudiante debe contener 11 dígitos.'
+    }
+    return ''
+  }
+
+  if (!correo) {
+    return 'El correo institucional es obligatorio para esta cuenta.'
+  }
+
+  if (role === 'Analista MINERD' && !correo.endsWith('@minerd.gob.do')) {
+    return 'El correo para Analista MINERD debe terminar en @minerd.gob.do.'
+  }
+
+  if (role === 'Analista MESCYT' && !correo.endsWith('@mescyt.gob.do')) {
+    return 'El correo para Analista MESCYT debe terminar en @mescyt.gob.do.'
+  }
+
+  if (!isEditing && password.length < 8) {
+    return 'La contraseña inicial debe tener al menos 8 caracteres.'
+  }
+
+  if (password && password.length < 8) {
+    return 'La contraseña debe tener al menos 8 caracteres.'
   }
 
   return ''
@@ -491,6 +554,25 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState([])
   const [studentProfileData, setStudentProfileData] = useState(null)
 
+  // Administración de usuarios
+  const emptyUserForm = {
+    nombreCompleto: '',
+    rol: 'Analista MINERD',
+    cedula: '',
+    correoInstitucional: '',
+    password: '',
+    activo: true,
+  }
+  const [adminUsers, setAdminUsers] = useState([])
+  const [usersLoading, setUsersLoading] = useState(false)
+  const [usersError, setUsersError] = useState('')
+  const [userForm, setUserForm] = useState(emptyUserForm)
+  const [editingUserId, setEditingUserId] = useState(null)
+  const [userFormError, setUserFormError] = useState('')
+  const [userSuccess, setUserSuccess] = useState('')
+  const [userSaving, setUserSaving] = useState(false)
+  const [revokingUserId, setRevokingUserId] = useState('')
+
   // ── Auditoría helper ────────────────────────────────────────────────────────
   const pushAudit = useCallback((accion, detalles, rol, usuario) =>
     setAuditLogs(prev => [{
@@ -535,19 +617,38 @@ export default function App() {
     }
   }, [])
 
+  const fetchAdminUsers = useCallback(async token => {
+    try {
+      setUsersLoading(true)
+      setUsersError('')
+      const raw = await apiRequest('/Users', { method: 'GET', token })
+      setAdminUsers(Array.isArray(raw) ? raw : [])
+    } catch (error) {
+      setUsersError(error?.message || 'No fue posible cargar los usuarios.')
+      setAdminUsers([])
+    } finally {
+      setUsersLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (!isAuthenticated || !authToken) return
 
-    if (authToken === 'contingency-token' && isGov(activeRole)) {
+    if (authToken === 'contingency-token' && canBackoffice(activeRole)) {
       return
     }
 
-    if (isGov(activeRole)) {
+    if (canBackoffice(activeRole)) {
       fetchStudents(authToken)
     } else {
       fetchStudentProfile(authToken)
     }
   }, [isAuthenticated, authToken, activeRole, contingencyMode, fetchStudents, fetchStudentProfile])
+
+  useEffect(() => {
+    if (!isAuthenticated || !authToken || !isAdmin(activeRole) || authToken === 'contingency-token') return
+    fetchAdminUsers(authToken)
+  }, [isAuthenticated, authToken, activeRole, fetchAdminUsers])
 
   // ── Login ───────────────────────────────────────────────────────────────────
   const handleLoginChange = e => {
@@ -558,6 +659,7 @@ export default function App() {
   const handleLogin = async e => {
     e.preventDefault()
     const esEstudiante = loginForm.rol === 'Estudiante'
+    const esAdministrador = loginForm.rol === 'Administrador'
     const usuario = esEstudiante ? loginForm.usuario.trim() : sanitizeInstitutionalUser(loginForm.usuario)
     const contrasena = (loginForm.contrasena || '').trim()
 
@@ -599,6 +701,14 @@ export default function App() {
           method: 'POST',
           body: { cedula: formatCedula(usuario) },
         })
+      } else if (esAdministrador) {
+        response = await apiRequest('/Auth/login/administrador', {
+          method: 'POST',
+          body: {
+            correoInstitucional: usuario,
+            password: contrasena,
+          },
+        })
       } else {
         response = await apiRequest('/Auth/login/analista', {
           method: 'POST',
@@ -624,7 +734,7 @@ export default function App() {
       setIsAuthenticated(true)
       setActiveRole(rol)
       setSessionAuditUser(auditUser)
-      setActiveTab(isGov(rol) ? TAB_INICIO : TAB_PERFIL)
+      setActiveTab(canBackoffice(rol) ? TAB_INICIO : TAB_PERFIL)
       pushAudit(
         'SESION_INICIO',
         `${esEstudiante ? 'Estudiante cédula' : 'Usuario'} ${loginForm.usuario.trim()} inició sesión como ${rol}`,
@@ -634,7 +744,7 @@ export default function App() {
     } catch (error) {
       const message = error?.message || 'No fue posible iniciar sesión.'
 
-      if (!esEstudiante && /No fue posible conectar con la API/i.test(message)) {
+      if (!esEstudiante && !esAdministrador && /No fue posible conectar con la API/i.test(message)) {
         const passwordValid = contrasena.length >= 8
         const domainValid = hasValidDomainByRole(loginForm.rol, usuario)
 
@@ -668,8 +778,106 @@ export default function App() {
     setStudents([])
     setStudentProfileData(null)
     setAuditLogs([])
+    setAdminUsers([])
+    setUsersError('')
+    setUserForm(emptyUserForm)
+    setEditingUserId(null)
+    setUserFormError('')
+    setUserSuccess('')
     setActiveTab(TAB_INICIO)
     cancelEdit()
+  }
+
+  const resetUserForm = () => {
+    setUserForm(emptyUserForm)
+    setEditingUserId(null)
+    setUserFormError('')
+  }
+
+  const startEditUser = user => {
+    setEditingUserId(user.id)
+    setUserForm({
+      nombreCompleto: user.nombreCompleto || '',
+      rol: user.rol || 'Analista MINERD',
+      cedula: user.cedula || '',
+      correoInstitucional: user.correoInstitucional || '',
+      password: '',
+      activo: Boolean(user.activo),
+    })
+    setUserFormError('')
+    setUserSuccess('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleUserFormChange = e => {
+    const { name, value, type, checked } = e.target
+    const nextValue = type === 'checkbox'
+      ? checked
+      : name === 'cedula'
+        ? value.replace(/[^\d-]/g, '').slice(0, 13)
+        : value
+    setUserForm(prev => ({ ...prev, [name]: nextValue }))
+    setUserFormError('')
+  }
+
+  const handleUserSubmit = async e => {
+    e.preventDefault()
+    const validationError = validateAccessUserForm(userForm, Boolean(editingUserId))
+    if (validationError) {
+      setUserFormError(validationError)
+      return
+    }
+
+    const payload = {
+      nombreCompleto: userForm.nombreCompleto.trim(),
+      rol: userForm.rol,
+      cedula: userForm.rol === 'Estudiante' ? formatCedula(userForm.cedula) : (userForm.cedula || '').trim() || null,
+      correoInstitucional: userForm.rol === 'Estudiante'
+        ? null
+        : sanitizeInstitutionalUser(userForm.correoInstitucional),
+      password: (userForm.password || '').trim() || null,
+      activo: Boolean(userForm.activo),
+    }
+
+    try {
+      setUserSaving(true)
+      setUserFormError('')
+      setUserSuccess('')
+
+      if (editingUserId) {
+        await apiRequest(`/Users/${editingUserId}`, { method: 'PUT', token: authToken, body: payload })
+        pushAudit('ACTUALIZAR', `Administrador actualizó la cuenta ${payload.nombreCompleto}`, activeRole, sessionAuditUser)
+        resetUserForm()
+        setUserSuccess('Cuenta actualizada correctamente.')
+      } else {
+        await apiRequest('/Users', { method: 'POST', token: authToken, body: payload })
+        pushAudit('CREAR', `Administrador creó la cuenta ${payload.nombreCompleto}`, activeRole, sessionAuditUser)
+        resetUserForm()
+        setUserSuccess('Cuenta creada correctamente.')
+      }
+
+      await fetchAdminUsers(authToken)
+    } catch (error) {
+      setUserFormError(error?.message || 'No se pudo guardar la cuenta.')
+    } finally {
+      setUserSaving(false)
+    }
+  }
+
+  const handleRevokeUser = async user => {
+    if (!user?.id || revokingUserId) return
+    if (!window.confirm(`¿Deseas revocar la cuenta de ${user.nombreCompleto}?`)) return
+
+    try {
+      setRevokingUserId(user.id)
+      await apiRequest(`/Users/${user.id}`, { method: 'DELETE', token: authToken })
+      pushAudit('ELIMINAR', `Administrador revocó la cuenta ${user.nombreCompleto}`, activeRole, sessionAuditUser)
+      await fetchAdminUsers(authToken)
+    } catch (error) {
+      setUsersError(error?.message || 'No se pudo revocar la cuenta.')
+    } finally {
+      setRevokingUserId('')
+    }
   }
 
   // ── Formulario de expedientes ───────────────────────────────────────────────
@@ -853,7 +1061,7 @@ export default function App() {
   }, [students])
 
   const studentProfile = useMemo(() => {
-    if (isGov(activeRole)) return null
+    if (canBackoffice(activeRole)) return null
     if (studentProfileData) {
       return { ...studentProfileData, modalidadAcademica: normalizeModalidad(studentProfileData.modalidadAcademica) }
     }
@@ -1032,6 +1240,27 @@ export default function App() {
     return { aprobadas, cursando, total, promedio: Math.round(promedio) }
   }, [])
 
+  const byEstado = useMemo(() => {
+    const map = {}
+    for (const student of students) {
+      const key = (student.estado || 'Sin estado').toString().trim() || 'Sin estado'
+      map[key] = (map[key] || 0) + 1
+    }
+    return Object.entries(map)
+      .map(([name, value], idx) => ({
+        name,
+        value,
+        fill: ['#0f766e', '#2563eb', '#d97706', '#be123c', '#7c3aed'][idx % 5],
+      }))
+      .sort((a, b) => b.value - a.value)
+  }, [students])
+
+  const modalidadChartData = useMemo(() => ([
+    { name: MOD_ACADEMICA, value: kpis.academica, fill: '#2563eb' },
+    { name: MOD_TECNICO, value: kpis.tecnico, fill: '#059669' },
+    { name: MOD_PRIMARIA, value: kpis.primaria, fill: '#d97706' },
+  ].filter(item => item.value > 0)), [kpis])
+
   // ────────────────────────────────────────────────────────────────────────────
   // PANTALLA DE LOGIN
   // ────────────────────────────────────────────────────────────────────────────
@@ -1082,7 +1311,11 @@ export default function App() {
                     name="usuario"
                     value={loginForm.usuario}
                     onChange={handleLoginChange}
-                    placeholder={loginForm.rol === 'Analista MINERD' ? 'usuario@minerd.gob.do' : 'usuario@mescyt.gob.do'}
+                    placeholder={loginForm.rol === 'Analista MINERD'
+                      ? 'usuario@minerd.gob.do'
+                      : loginForm.rol === 'Analista MESCYT'
+                        ? 'usuario@mescyt.gob.do'
+                        : 'admin@edumetrics.gob.do'}
                     autoComplete="username"
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   />
@@ -1145,7 +1378,7 @@ export default function App() {
           </div>
 
           <nav className="flex flex-wrap gap-1" aria-label="Navegación principal">
-            {(isGov(activeRole) ? GOV_TABS : STU_TABS).map(tab => (
+            {(isAdmin(activeRole) ? ADMIN_TABS : canBackoffice(activeRole) ? GOV_TABS : STU_TABS).map(tab => (
               <button
                 key={tab}
                 type="button"
@@ -1191,7 +1424,7 @@ export default function App() {
         {/* ── FORMULARIO (gubernamental, siempre en DOM para preservar estado) ── */}
         <div
           className={`${card} p-5`}
-          style={{ display: activeTab === TAB_FORMULARIO && isGov(activeRole) ? 'block' : 'none' }}
+          style={{ display: activeTab === TAB_FORMULARIO && canBackoffice(activeRole) ? 'block' : 'none' }}
           aria-hidden={activeTab !== TAB_FORMULARIO}
         >
           <h2 className="mb-4 text-base font-semibold text-slate-800">
@@ -1247,12 +1480,14 @@ export default function App() {
         </div>
 
         {/* ═══ GUBERNAMENTAL: INICIO ═══ */}
-        {activeTab === TAB_INICIO && isGov(activeRole) && (
+        {activeTab === TAB_INICIO && canBackoffice(activeRole) && (
           <section className={`${card} p-6 space-y-5`}>
             <div>
               <h2 className="text-xl font-bold text-slate-800">Bienvenido, {activeRole}</h2>
               <p className="mt-1 text-sm text-slate-500">
-                {activeRole === 'Analista MINERD'
+                {activeRole === 'Administrador'
+                  ? 'Panel administrativo para supervisar expedientes, accesos institucionales y reportes ejecutivos del sistema.'
+                  : activeRole === 'Analista MINERD'
                   ? 'Panel de gestión de expedientes para centros educativos del nivel pre-universitario (Escuelas y Politécnicos) bajo MINERD.'
                   : 'Panel de gestión de egresados y matriculados en instituciones de educación superior reguladas por MESCYT.'}
               </p>
@@ -1298,7 +1533,7 @@ export default function App() {
         )}
 
         {/* ═══ GUBERNAMENTAL: GESTIÓN ═══ */}
-        {activeTab === TAB_GESTION && isGov(activeRole) && (
+        {activeTab === TAB_GESTION && canBackoffice(activeRole) && (
           <section className={`${card} p-5 space-y-4`}>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-base font-semibold text-slate-800">Gestión de Expedientes</h2>
@@ -1387,13 +1622,7 @@ export default function App() {
                         <td className="border-b border-slate-100 px-4 py-3 text-slate-600">{student.cedula ?? '—'}</td>
                         <td className="border-b border-slate-100 px-4 py-3">{student.centroEducativo ?? '—'}</td>
                         <td className="border-b border-slate-100 px-4 py-3">
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                            normalizeModalidad(student.modalidadAcademica) === MOD_TECNICO
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : normalizeModalidad(student.modalidadAcademica) === MOD_PRIMARIA
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-blue-100 text-blue-800'
-                          }`}>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${getModalidadBadgeClasses(normalizeModalidad(student.modalidadAcademica))}`}>
                             {normalizeModalidad(student.modalidadAcademica)}
                           </span>
                         </td>
@@ -1421,7 +1650,7 @@ export default function App() {
         )}
 
         {/* ═══ GUBERNAMENTAL: REPORTES ═══ */}
-        {activeTab === TAB_REPORTES && isGov(activeRole) && (
+        {activeTab === TAB_REPORTES && canBackoffice(activeRole) && (
           <section className={`${card} p-5 space-y-5`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-base font-semibold text-slate-800">Reportes Empresariales</h2>
@@ -1492,13 +1721,60 @@ export default function App() {
                       ))
                   }
                 </div>
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="mb-3">
+                      <h3 className="text-sm font-semibold text-slate-800">Gráfico de Modalidades</h3>
+                      <p className="text-xs text-slate-500">Vista doughnut de la distribución real de expedientes por modalidad.</p>
+                    </div>
+                    {modalidadChartData.length === 0 ? (
+                      <div className="flex h-72 items-center justify-center text-sm text-slate-500">Sin datos para graficar.</div>
+                    ) : (
+                      <div className="h-72">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={modalidadChartData} dataKey="value" nameKey="name" innerRadius={65} outerRadius={100} paddingAngle={4}>
+                              {modalidadChartData.map(item => <Cell key={item.name} fill={item.fill} />)}
+                            </Pie>
+                            <Tooltip formatter={value => [`${value} expedientes`, 'Cantidad']} />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                  </article>
+                  <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="mb-3">
+                      <h3 className="text-sm font-semibold text-slate-800">Gráfico por Estado</h3>
+                      <p className="text-xs text-slate-500">Barras dinámicas basadas en el estado actual reportado por el backend.</p>
+                    </div>
+                    {byEstado.length === 0 ? (
+                      <div className="flex h-72 items-center justify-center text-sm text-slate-500">Sin estados disponibles.</div>
+                    ) : (
+                      <div className="h-72">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={byEstado} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                            <YAxis allowDecimals={false} />
+                            <Tooltip formatter={value => [`${value} expedientes`, 'Cantidad']} />
+                            <Legend />
+                            <Bar dataKey="value" name="Expedientes" radius={[8, 8, 0, 0]}>
+                              {byEstado.map(item => <Cell key={item.name} fill={item.fill} />)}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                  </article>
+                </div>
               </>
             )}
           </section>
         )}
 
         {/* ═══ GUBERNAMENTAL: AUDITORÍA ═══ */}
-        {activeTab === TAB_AUDITORIA && isGov(activeRole) && (
+        {activeTab === TAB_AUDITORIA && canBackoffice(activeRole) && (
           <section className={`${card} p-5 space-y-4`}>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-base font-semibold text-slate-800">Registro de Auditoría</h2>
@@ -1579,8 +1855,172 @@ export default function App() {
           </section>
         )}
 
+        {activeTab === TAB_USUARIOS && isAdmin(activeRole) && (
+          <section className="space-y-5">
+            {userSuccess && (
+              <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                {userSuccess}
+              </div>
+            )}
+
+            <div className={`${card} p-5`}>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-800">Administración de Usuarios</h2>
+                  <p className="text-sm text-slate-500">Gestiona cuentas administrativas, analistas y accesos estudiantiles protegidos por JWT.</p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                  {adminUsers.length} cuenta{adminUsers.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              <form onSubmit={handleUserSubmit} className="grid gap-3 lg:grid-cols-3" noValidate>
+                <label className="grid gap-1">
+                  <span className="text-sm text-slate-600">Nombre completo</span>
+                  <input
+                    type="text"
+                    name="nombreCompleto"
+                    value={userForm.nombreCompleto}
+                    onChange={handleUserFormChange}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                    placeholder="Mariela de los Santos"
+                  />
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-sm text-slate-600">Rol</span>
+                  <select
+                    name="rol"
+                    value={userForm.rol}
+                    onChange={handleUserFormChange}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                  >
+                    {ROLES.map(role => <option key={role} value={role}>{role}</option>)}
+                  </select>
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-sm text-slate-600">Cédula</span>
+                  <input
+                    type="text"
+                    name="cedula"
+                    value={userForm.cedula}
+                    onChange={handleUserFormChange}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                    placeholder="000-0000000-0"
+                  />
+                </label>
+                <label className="grid gap-1 lg:col-span-2">
+                  <span className="text-sm text-slate-600">Correo institucional</span>
+                  <input
+                    type="email"
+                    name="correoInstitucional"
+                    value={userForm.correoInstitucional}
+                    onChange={handleUserFormChange}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none disabled:bg-slate-100"
+                    placeholder={userForm.rol === 'Analista MINERD' ? 'usuario@minerd.gob.do' : userForm.rol === 'Analista MESCYT' ? 'usuario@mescyt.gob.do' : 'admin@edumetrics.gob.do'}
+                    disabled={userForm.rol === 'Estudiante'}
+                  />
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-sm text-slate-600">Contraseña {editingUserId ? '(opcional)' : ''}</span>
+                  <input
+                    type="password"
+                    name="password"
+                    value={userForm.password}
+                    onChange={handleUserFormChange}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none disabled:bg-slate-100"
+                    placeholder={userForm.rol === 'Estudiante' ? 'No aplica para estudiantes' : '••••••••'}
+                    disabled={userForm.rol === 'Estudiante'}
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-700 lg:col-span-3">
+                  <input type="checkbox" name="activo" checked={userForm.activo} onChange={handleUserFormChange} className="h-4 w-4 rounded border-slate-300 text-violet-700 focus:ring-violet-500" />
+                  Cuenta activa
+                </label>
+                <div className="flex flex-wrap items-center gap-2 lg:col-span-3">
+                  {editingUserId && (
+                    <button type="button" onClick={resetUserForm} disabled={userSaving} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                      Cancelar edición
+                    </button>
+                  )}
+                  <button type="submit" disabled={userSaving} className="inline-flex items-center gap-2 rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:bg-violet-400">
+                    {userSaving && <InlineSpinner className="border-white/50 border-t-white" />}
+                    {editingUserId ? 'Guardar cuenta' : 'Crear cuenta'}
+                  </button>
+                </div>
+              </form>
+
+              {userFormError && (
+                <p role="alert" className="mt-3 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{userFormError}</p>
+              )}
+            </div>
+
+            <div className={`${card} p-5`}>
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <h3 className="text-base font-semibold text-slate-800">Cuentas registradas</h3>
+                {usersLoading && <span className="inline-flex items-center gap-2 text-sm text-slate-500"><InlineSpinner /> Cargando usuarios…</span>}
+              </div>
+
+              {usersError && (
+                <p role="alert" className="mb-4 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{usersError}</p>
+              )}
+
+              {usersLoading ? (
+                <TableSkeleton rows={6} />
+              ) : adminUsers.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">
+                  No hay cuentas disponibles para mostrar.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full min-w-[920px] text-sm text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        {['Nombre', 'Rol', 'Cédula', 'Correo', 'Estado', 'Acciones'].map(header => (
+                          <th key={header} className="px-4 py-3 font-semibold text-slate-700">{header}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adminUsers.map(user => (
+                        <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3 font-medium text-slate-800">{user.nombreCompleto}</td>
+                          <td className="px-4 py-3">
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${getUserRoleBadgeClasses(user.rol)}`}>
+                              {user.rol}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">{user.cedula || '—'}</td>
+                          <td className="px-4 py-3 text-slate-600">{user.correoInstitucional || '—'}</td>
+                          <td className="px-4 py-3">
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${user.activo ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}`}>
+                              {user.activo ? 'Activa' : 'Revocada'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <button type="button" onClick={() => startEditUser(user)} className="mr-2 rounded-md border border-violet-300 bg-violet-50 px-3 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100">
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRevokeUser(user)}
+                              disabled={!user.activo || revokingUserId === user.id}
+                              className="rounded-md border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-40"
+                            >
+                              {revokingUserId === user.id ? 'Revocando…' : 'Revocar'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
         {/* ═══ ESTUDIANTIL: MI PERFIL ═══ */}
-        {activeTab === TAB_PERFIL && !isGov(activeRole) && (
+        {activeTab === TAB_PERFIL && !canBackoffice(activeRole) && (
           <section className="space-y-4">
             <div className={`${card} p-6`}>
               <div className="flex flex-wrap items-center gap-5">
@@ -1595,13 +2035,7 @@ export default function App() {
                   <p className="text-sm text-slate-500">
                     Centro: <span className="font-medium text-slate-700">{studentProfile?.centroEducativo ?? '—'}</span>
                   </p>
-                  <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
-                    normalizeModalidad(studentProfile?.modalidadAcademica) === MOD_TECNICO
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : normalizeModalidad(studentProfile?.modalidadAcademica) === MOD_PRIMARIA
-                        ? 'bg-amber-100 text-amber-800'
-                        : 'bg-blue-100 text-blue-800'
-                  }`}>
+                  <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${getModalidadBadgeClasses(normalizeModalidad(studentProfile?.modalidadAcademica))}`}>
                     {normalizeModalidad(studentProfile?.modalidadAcademica)}
                   </span>
                 </div>
@@ -1643,7 +2077,7 @@ export default function App() {
         )}
 
         {/* ═══ ESTUDIANTIL: MI PENSUM ═══ */}
-        {activeTab === TAB_PENSUM && !isGov(activeRole) && (
+        {activeTab === TAB_PENSUM && !canBackoffice(activeRole) && (
           <section className={`${card} p-5 space-y-4`}>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-base font-semibold text-slate-800">Mi Pensum</h2>
@@ -1698,7 +2132,7 @@ export default function App() {
         )}
 
         {/* ═══ ESTUDIANTIL: BECAS ═══ */}
-        {activeTab === TAB_BECAS && !isGov(activeRole) && (
+        {activeTab === TAB_BECAS && !canBackoffice(activeRole) && (
           <section className="space-y-4">
             <div className={`${card} p-5`}>
               <h2 className="text-base font-semibold text-slate-800 mb-1">Oportunidades y Becas</h2>

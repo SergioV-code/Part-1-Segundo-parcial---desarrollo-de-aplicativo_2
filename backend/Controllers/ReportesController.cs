@@ -9,7 +9,7 @@ namespace EDUMETRICS_DR.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Analista MINERD,Analista MESCYT")]
+[Authorize(Roles = SystemRoles.SoloBackoffice)]
 public class ReportesController : ControllerBase
 {
     private readonly SchoolContext _context;

@@ -8,10 +8,14 @@ public static class AppDbSeeder
 {
     public static async Task SeedAsync(SchoolContext context, IPasswordHasher passwordHasher, CancellationToken cancellationToken = default)
     {
+        await EnsureUserRoleConstraintAsync(context, cancellationToken);
+
         var minerdEmail = NormalizeEmail("analista@minerd.gob.do");
         var mescytEmail = NormalizeEmail("analista@mescyt.gob.do");
+        var adminEmail = NormalizeEmail(Environment.GetEnvironmentVariable("FALLBACK_ADMIN_EMAIL") ?? "admin@edumetrics.gob.do");
         var minerdPassword = Environment.GetEnvironmentVariable("FALLBACK_MINERD_PASSWORD") ?? "Minerd#2026";
         var mescytPassword = Environment.GetEnvironmentVariable("FALLBACK_MESCYT_PASSWORD") ?? "Mescyt#2026";
+        var adminPassword = Environment.GetEnvironmentVariable("FALLBACK_ADMIN_PASSWORD") ?? "Admin#2026";
 
         await UpsertAnalystUserAsync(
             context,
@@ -31,6 +35,16 @@ public static class AppDbSeeder
             institutionalEmail: mescytEmail,
             cedula: "ANL-MESCYT-001",
             plainPassword: mescytPassword,
+            cancellationToken);
+
+        await UpsertAnalystUserAsync(
+            context,
+            passwordHasher,
+            role: SystemRoles.Administrador,
+            displayName: "Administrador EDUMETRICS",
+            institutionalEmail: adminEmail,
+            cedula: "ADM-EDR-001",
+            plainPassword: adminPassword,
             cancellationToken);
 
         var now = DateTime.UtcNow;
@@ -160,5 +174,24 @@ public static class AppDbSeeder
     private static string NormalizeEmail(string email)
     {
         return (email ?? string.Empty).Trim().ToLowerInvariant();
+    }
+
+    private static async Task EnsureUserRoleConstraintAsync(SchoolContext context, CancellationToken cancellationToken)
+    {
+        const string sql = """
+            IF OBJECT_ID(N'[dbo].[Users]', N'U') IS NOT NULL
+            BEGIN
+                IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Users_Rol')
+                BEGIN
+                    ALTER TABLE [dbo].[Users] DROP CONSTRAINT [CK_Users_Rol];
+                END
+
+                ALTER TABLE [dbo].[Users] WITH NOCHECK
+                ADD CONSTRAINT [CK_Users_Rol]
+                CHECK ([Rol] IN ('Estudiante', 'Analista MINERD', 'Analista MESCYT', 'Administrador'));
+            END
+            """;
+
+        await context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
     }
 }

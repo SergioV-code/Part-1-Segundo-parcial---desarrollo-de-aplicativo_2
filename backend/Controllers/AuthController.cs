@@ -62,4 +62,22 @@ public class AuthController : ControllerBase
 
         return Ok(authResponse);
     }
+
+    [HttpPost("login/administrador")]
+    public async Task<IActionResult> LoginAdministrador([FromBody] LoginAdministradorRequest request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        var correo = _userService.NormalizeInstitutionalEmail(request.CorreoInstitucional);
+        var authResponse = await _authService.LoginAdministradorAsync(correo, request.Password, cancellationToken);
+        if (authResponse is null)
+        {
+            return Unauthorized(new { error = "Credenciales administrativas inválidas." });
+        }
+
+        return Ok(authResponse);
+    }
 }

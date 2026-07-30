@@ -19,7 +19,7 @@ public class ExampleController : ControllerBase
     }
 
     [HttpGet("AllExampleData")]
-    [Authorize(Roles = "Analista MINERD,Analista MESCYT")]
+    [Authorize(Roles = SystemRoles.SoloBackoffice)]
     public async Task<ActionResult<IEnumerable<Student>>> GetAllData(CancellationToken cancellationToken)
     {
         var students = await _studentService.GetAllAsync(cancellationToken);
@@ -27,7 +27,7 @@ public class ExampleController : ControllerBase
     }
 
     [HttpPost("CreateExample")]
-    [Authorize(Roles = "Analista MINERD,Analista MESCYT")]
+    [Authorize(Roles = SystemRoles.SoloBackoffice)]
     [ServiceFilter(typeof(AuditActionFilter))]
     [AuditAction("CREAR_EXPEDIENTE")]
     public async Task<IActionResult> CreateExample([FromBody] Student nuevoEstudiante, CancellationToken cancellationToken)
@@ -42,7 +42,7 @@ public class ExampleController : ControllerBase
     }
 
     [HttpPut("ChangeExampleData/{id:int}")]
-    [Authorize(Roles = "Analista MINERD,Analista MESCYT")]
+    [Authorize(Roles = SystemRoles.SoloBackoffice)]
     [ServiceFilter(typeof(AuditActionFilter))]
     [AuditAction("EDITAR_EXPEDIENTE")]
     public async Task<IActionResult> PutChangeExampleData(int id, [FromBody] Student student, CancellationToken cancellationToken)
@@ -62,7 +62,7 @@ public class ExampleController : ControllerBase
     }
 
     [HttpDelete("DeleteExample/{id:int}")]
-    [Authorize(Roles = "Analista MINERD,Analista MESCYT")]
+    [Authorize(Roles = SystemRoles.SoloBackoffice)]
     [ServiceFilter(typeof(AuditActionFilter))]
     [AuditAction("ELIMINAR_EXPEDIENTE")]
     public async Task<IActionResult> DeleteExample(int id, CancellationToken cancellationToken)

@@ -179,6 +179,62 @@ public class AuthService : IAuthService
         return response;
     }
 
+    public async Task<AuthResponseDto?> LoginAdministradorAsync(string correoInstitucional, string password, CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = _userService.NormalizeInstitutionalEmail(correoInstitucional);
+        var normalizedPassword = (password ?? string.Empty).Trim();
+
+        if (string.IsNullOrWhiteSpace(normalizedEmail) || string.IsNullOrWhiteSpace(normalizedPassword))
+        {
+            return null;
+        }
+
+        try
+        {
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    x.Activo
+                    && x.Rol == SystemRoles.Administrador
+                    && x.CorreoInstitucional != null
+                    && x.CorreoInstitucional.Trim().ToLower() == normalizedEmail,
+                    cancellationToken);
+
+            if (user is null || string.IsNullOrWhiteSpace(user.PasswordHash) || !_passwordHasher.Verify(normalizedPassword, user.PasswordHash))
+            {
+                return TryFallbackAdministratorLogin(normalizedEmail, normalizedPassword);
+            }
+
+            var response = BuildToken(
+                user.Id.ToString(),
+                user.NombreCompleto,
+                SystemRoles.Administrador,
+                user.Cedula,
+                normalizedEmail);
+
+            await SafeAuditLogAsync(
+                normalizedEmail,
+                SystemRoles.Administrador,
+                "LOGIN_EXITOSO_ADMINISTRADOR",
+                $"Inicio de sesion de administrador: {normalizedEmail}",
+                cancellationToken);
+
+            return response;
+        }
+        catch (SqlException)
+        {
+            return TryFallbackAdministratorLogin(normalizedEmail, normalizedPassword);
+        }
+        catch (DbUpdateException)
+        {
+            return TryFallbackAdministratorLogin(normalizedEmail, normalizedPassword);
+        }
+        catch
+        {
+            return TryFallbackAdministratorLogin(normalizedEmail, normalizedPassword);
+        }
+    }
+
     private AuthResponseDto? TryFallbackAnalystLogin(string rolSeleccionado, string correoInstitucional, string password)
     {
         var minerdPassword = Environment.GetEnvironmentVariable("FALLBACK_MINERD_PASSWORD") ?? "Minerd#2026";
@@ -207,6 +263,20 @@ public class AuthService : IAuthService
         }
 
         return null;
+    }
+
+    private AuthResponseDto? TryFallbackAdministratorLogin(string correoInstitucional, string password)
+    {
+        var adminEmail = _userService.NormalizeInstitutionalEmail(
+            Environment.GetEnvironmentVariable("FALLBACK_ADMIN_EMAIL") ?? "admin@edumetrics.gob.do");
+        var adminPassword = Environment.GetEnvironmentVariable("FALLBACK_ADMIN_PASSWORD") ?? "Admin#2026";
+
+        if (correoInstitucional != adminEmail || password != adminPassword)
+        {
+            return null;
+        }
+
+        return BuildToken("fallback-admin", "Administrador EDUMETRICS", SystemRoles.Administrador, null, adminEmail);
     }
 
     private AuthResponseDto? TryFallbackStudentLogin(string cedula)
