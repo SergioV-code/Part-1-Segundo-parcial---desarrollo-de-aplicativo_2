@@ -67,9 +67,13 @@ async function apiRequest(path, { method = 'GET', token = '', body = null } = {}
           || res.statusText
           || 'Error inesperado'
 
-        if (res.status >= 500 || res.status === 404 || res.status === 405) {
+        if (res.status === 404 || res.status === 405) {
           lastError = new Error(`HTTP ${res.status} - ${detail}`)
           continue
+        }
+
+        if (res.status >= 500) {
+          throw new Error(`HTTP ${res.status} - ${detail}`)
         }
 
         if (res.status === 400) {
@@ -86,7 +90,7 @@ async function apiRequest(path, { method = 'GET', token = '', body = null } = {}
       return payload
     } catch (error) {
       const message = error?.message || ''
-      if (/HTTP 4\d\d/i.test(message)) {
+      if (/HTTP [45]\d\d/i.test(message)) {
         throw error
       }
       lastError = error
@@ -94,7 +98,7 @@ async function apiRequest(path, { method = 'GET', token = '', body = null } = {}
   }
 
   const message = lastError?.message || ''
-  if (/Failed to fetch|NetworkError|Load failed|HTTP 5\d\d|HTTP 404|HTTP 405/i.test(message)) {
+  if (/Failed to fetch|NetworkError|Load failed|HTTP 404|HTTP 405/i.test(message)) {
     throw new Error('No fue posible conectar con la API. Verifica que el backend de Railway esté activo y respondiendo (health endpoint).')
   }
 
