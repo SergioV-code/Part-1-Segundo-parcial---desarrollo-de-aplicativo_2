@@ -28,7 +28,6 @@ export async function onRequest(context) {
 
   if (!['GET', 'HEAD'].includes(request.method.toUpperCase())) {
     init.body = request.body
-    init.duplex = 'half'
   }
 
   try {
