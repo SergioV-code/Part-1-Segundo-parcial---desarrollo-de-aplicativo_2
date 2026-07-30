@@ -341,12 +341,17 @@ export default function App() {
 
   useEffect(() => {
     if (!isAuthenticated || !authToken) return
+
+    if (contingencyMode && authToken === 'contingency-token' && isGov(activeRole)) {
+      return
+    }
+
     if (isGov(activeRole)) {
       fetchStudents(authToken)
     } else {
       fetchStudentProfile(authToken)
     }
-  }, [isAuthenticated, authToken, activeRole, fetchStudents, fetchStudentProfile])
+  }, [isAuthenticated, authToken, activeRole, contingencyMode, fetchStudents, fetchStudentProfile])
 
   // ── Login ───────────────────────────────────────────────────────────────────
   const handleLoginChange = e => {
@@ -485,6 +490,48 @@ export default function App() {
       setFormError('Nombre, Cédula y Centro Educativo son obligatorios.')
       return
     }
+
+    if (contingencyMode) {
+      const nextModalidad = normalizeModalidad(form.modalidadAcademica)
+      if (editingId) {
+        setStudents(prev => prev.map(s =>
+          s.id === editingId
+            ? {
+                ...s,
+                nombre: form.nombre.trim(),
+                cedula: form.cedula.trim(),
+                centroEducativo: form.centroEducativo.trim(),
+                modalidadAcademica: nextModalidad,
+                fechaActualizacion: new Date().toISOString(),
+              }
+            : s,
+        ))
+        pushAudit('ACTUALIZAR', `Contingencia: expediente actualizado ${form.cedula.trim()}`, activeRole)
+        setFormSuccess('Expediente actualizado en modo contingencia.')
+      } else {
+        const nextId = students.reduce((maxId, item) => Math.max(maxId, Number(item.id) || 0), 0) + 1
+        setStudents(prev => [{
+          id: nextId,
+          nombre: form.nombre.trim(),
+          cedula: form.cedula.trim(),
+          centroEducativo: form.centroEducativo.trim(),
+          modalidadAcademica: nextModalidad,
+          rne: `RNE-LOCAL-${Date.now()}`,
+          distritoEducativo: '00-00',
+          estado: 'Regular',
+          tasaAsistencia: 80,
+          promedioGeneral: 75,
+          fechaCreacion: new Date().toISOString(),
+          fechaActualizacion: new Date().toISOString(),
+        }, ...prev])
+        pushAudit('CREAR', `Contingencia: expediente creado ${form.cedula.trim()}`, activeRole)
+        setFormSuccess('Expediente agregado en modo contingencia.')
+      }
+
+      cancelEdit()
+      return
+    }
+
     try {
       setSubmitting(true)
       setFormError('')
@@ -527,6 +574,13 @@ export default function App() {
   const handleDelete = async id => {
     if (!id || deletingId) return
     if (!window.confirm('¿Seguro que deseas eliminar este expediente? Esta acción no se puede deshacer.')) return
+
+    if (contingencyMode) {
+      setStudents(prev => prev.filter(s => s.id !== id))
+      pushAudit('ELIMINAR', `Contingencia: expediente eliminado id ${id}`, activeRole)
+      return
+    }
+
     try {
       setDeletingId(id)
       await apiRequest(`/DeleteExample/${id}`, { method: 'DELETE', token: authToken })
@@ -822,7 +876,7 @@ export default function App() {
             {dataError && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
                 <strong>Error al cargar datos:</strong> {dataError}
-                <button type="button" onClick={() => fetchStudents(activeRole)} className="ml-3 underline font-medium">
+                <button type="button" onClick={() => fetchStudents(authToken)} className="ml-3 underline font-medium">
                   Reintentar
                 </button>
               </div>
