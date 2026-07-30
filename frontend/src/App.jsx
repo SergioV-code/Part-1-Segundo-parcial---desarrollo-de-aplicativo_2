@@ -51,7 +51,7 @@ async function apiRequest(path, { method = 'GET', token = '', body = null } = {}
       try { payload = text ? JSON.parse(text) : null } catch { payload = null }
 
       if (!res.ok) {
-        const detail = payload?.error || payload?.message || payload?.title || res.statusText || 'Error inesperado'
+        const detail = payload?.error || payload?.message || payload?.detail || payload?.title || res.statusText || 'Error inesperado'
         if (res.status >= 500 || res.status === 404 || res.status === 405) {
           lastError = new Error(`HTTP ${res.status} - ${detail}`)
           continue
