@@ -135,7 +135,7 @@ var app = builder.Build();
 var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
 var enableDbBootstrap = builder.Configuration.GetValue<bool?>("ENABLE_DB_BOOTSTRAP")
     ?? true;
-var bootstrapTimeoutSeconds = app.Environment.IsProduction() ? 8 : 30;
+var bootstrapTimeoutSeconds = app.Environment.IsProduction() ? 45 : 30;
 
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 
