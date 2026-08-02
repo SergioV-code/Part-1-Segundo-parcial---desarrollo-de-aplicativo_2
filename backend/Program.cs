@@ -6,6 +6,7 @@ using EDUMETRICS_DR.Filters;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -14,14 +15,16 @@ using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var sqlConnection =
-    Environment.GetEnvironmentVariable("SQLSERVER_CONNECTION_STRING")
-    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+var sqlConnection = ResolveSqlConnectionString(builder.Configuration);
 
 if (string.IsNullOrWhiteSpace(sqlConnection))
 {
     sqlConnection = "Server=localhost,1433;Database=EdumetricsDR_Fallback;User Id=sa;Password=ChangeMe123!;TrustServerCertificate=True;Connection Timeout=5;";
     Console.WriteLine("[Startup Warning] SQLSERVER_CONNECTION_STRING no configurada. Se usará una conexión fallback para mantener la API online.");
+}
+else
+{
+    Console.WriteLine("[Startup] Cadena de conexión SQL detectada desde variables de entorno/configuración.");
 }
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
@@ -60,7 +63,14 @@ builder.Services.Configure<JwtOptions>(options =>
 });
 
 builder.Services.AddDbContext<SchoolContext>(options =>
-    options.UseSqlServer(sqlConnection));
+    options.UseSqlServer(sqlConnection, sqlOptions =>
+    {
+        sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 3,
+            maxRetryDelay: TimeSpan.FromSeconds(5),
+            errorNumbersToAdd: null);
+        sqlOptions.CommandTimeout(15);
+    }));
 
 builder.Services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddScoped<IAuditService, AuditService>();
@@ -192,14 +202,33 @@ app.UseExceptionHandler(handler =>
     handler.Run(async context =>
     {
         var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
-        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        var isDatabaseUnavailable = IsDatabaseUnavailable(exception);
+
+        context.Response.StatusCode = isDatabaseUnavailable
+            ? StatusCodes.Status503ServiceUnavailable
+            : StatusCodes.Status500InternalServerError;
         context.Response.ContentType = "application/json";
 
-        var payload = new
+        object payload;
+        if (isDatabaseUnavailable)
         {
-            error = "Error interno del servidor.",
-            detail = exception?.Message
-        };
+            payload = new
+            {
+                error = "Servicio temporalmente no disponible.",
+                detail = "La base de datos SQL Server no está accesible en este momento. Intenta nuevamente en unos minutos.",
+                code = StatusCodes.Status503ServiceUnavailable,
+                source = "sql-connectivity"
+            };
+        }
+        else
+        {
+            payload = new
+            {
+                error = "Error interno del servidor.",
+                detail = exception?.Message,
+                code = StatusCodes.Status500InternalServerError
+            };
+        }
 
         await context.Response.WriteAsync(JsonSerializer.Serialize(payload));
     });
@@ -263,3 +292,47 @@ app.MapGet("/health", () => Results.Ok(new
 app.MapControllers();
 
 app.Run($"http://0.0.0.0:{port}");
+
+static string? ResolveSqlConnectionString(IConfiguration configuration)
+{
+    var candidates = new[]
+    {
+        Environment.GetEnvironmentVariable("SQLSERVER_CONNECTION_STRING"),
+        Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection"),
+        configuration["SQLSERVER_CONNECTION_STRING"],
+        configuration["ConnectionStrings:DefaultConnection"],
+        configuration.GetConnectionString("DefaultConnection"),
+    };
+
+    return candidates
+        .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
+        ?.Trim();
+}
+
+static bool IsDatabaseUnavailable(Exception? exception)
+{
+    Exception? current = exception;
+    while (current is not null)
+    {
+        if (current is SqlException || current is TimeoutException || current is DbUpdateException)
+        {
+            return true;
+        }
+
+        var message = current.Message?.ToLowerInvariant() ?? string.Empty;
+        if (message.Contains("sql server")
+            || message.Contains("network-related")
+            || message.Contains("server was not found")
+            || message.Contains("not accessible")
+            || message.Contains("tcp provider")
+            || message.Contains("connection timeout")
+            || message.Contains("could not open a connection"))
+        {
+            return true;
+        }
+
+        current = current.InnerException;
+    }
+
+    return false;
+}
