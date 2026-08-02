@@ -67,6 +67,7 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+builder.Services.AddScoped<IScholarshipApplicationService, ScholarshipApplicationService>();
 builder.Services.AddScoped<StudentService>();
 builder.Services.AddScoped<AuditActionFilter>();
 

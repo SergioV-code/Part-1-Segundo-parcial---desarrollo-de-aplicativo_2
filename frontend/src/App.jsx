@@ -151,13 +151,15 @@ const TAB_FORMULARIO = 'Formulario de Registro'
 const TAB_REPORTES   = 'Reportes Empresariales'
 const TAB_AUDITORIA  = 'Registro de Auditoria'
 const TAB_USUARIOS   = 'Administracion de Usuarios'
-const GOV_TABS = [TAB_INICIO, TAB_GESTION, TAB_FORMULARIO, TAB_REPORTES, TAB_AUDITORIA]
+const TAB_EVALUACION_BECAS = 'Bandeja de Becas'
+const GOV_TABS = [TAB_INICIO, TAB_GESTION, TAB_FORMULARIO, TAB_REPORTES, TAB_EVALUACION_BECAS, TAB_AUDITORIA]
 const ADMIN_TABS = [...GOV_TABS, TAB_USUARIOS]
 
 const TAB_PERFIL = 'Mi Perfil'
 const TAB_PENSUM = 'Mi Pensum'
 const TAB_BECAS  = 'Oportunidades y Becas'
 const STU_TABS   = [TAB_PERFIL, TAB_PENSUM, TAB_BECAS]
+const TRACEABILITY_EMAIL = 'sergiovargasdiaz316@gmail.com'
 
 const ROLES = ['Analista MINERD', 'Analista MESCYT', 'Estudiante', 'Administrador']
 const ROL_COLORS = {
@@ -448,6 +450,40 @@ function validateAccessUserForm(form, isEditing) {
   return ''
 }
 
+function validateScholarshipRequestForm(form) {
+  const scholarshipName = (form.scholarshipName || '').trim()
+  const institutionName = (form.institutionName || '').trim()
+
+  if (scholarshipName.length < 4) {
+    return 'Selecciona o indica una beca válida para continuar.'
+  }
+
+  if (institutionName.length < 3) {
+    return 'La institución de la beca es obligatoria.'
+  }
+
+  return ''
+}
+
+function getScholarshipStatusClasses(status) {
+  if (status === 'Pendiente') return 'bg-amber-100 text-amber-800'
+  if (status === 'En Análisis Económico') return 'bg-blue-100 text-blue-800'
+  if (status === 'Completada') return 'bg-emerald-100 text-emerald-800'
+  if (status === 'Rechazada') return 'bg-rose-100 text-rose-800'
+  return 'bg-slate-100 text-slate-700'
+}
+
+function getScholarshipHistoryActionLabel(action) {
+  const labels = {
+    SOLICITUD_CREADA: 'Solicitud creada',
+    SOLICITUD_APROBADA: 'Aprobada',
+    SOLICITUD_RECHAZADA: 'Rechazada',
+    ANALISIS_ECONOMICO_COMPLETADO: 'Flujo completado',
+  }
+
+  return labels[action] || action || 'Actualización'
+}
+
 // ─── ESTILOS BASE ─────────────────────────────────────────────────────────────
 const pageStyle = {
   minHeight: '100vh',
@@ -612,6 +648,24 @@ export default function App() {
   const [userSaving, setUserSaving] = useState(false)
   const [revokingUserId, setRevokingUserId] = useState('')
 
+  // Módulo de becas
+  const emptyScholarshipForm = {
+    scholarshipName: '',
+    institutionName: '',
+    studentComment: '',
+  }
+  const [scholarshipForm, setScholarshipForm] = useState(emptyScholarshipForm)
+  const [scholarshipFormError, setScholarshipFormError] = useState('')
+  const [scholarshipSuccess, setScholarshipSuccess] = useState('')
+  const [studentScholarshipApplications, setStudentScholarshipApplications] = useState([])
+  const [pendingScholarshipApplications, setPendingScholarshipApplications] = useState([])
+  const [economicScholarshipApplications, setEconomicScholarshipApplications] = useState([])
+  const [scholarshipLoading, setScholarshipLoading] = useState(false)
+  const [scholarshipError, setScholarshipError] = useState('')
+  const [scholarshipActionId, setScholarshipActionId] = useState('')
+  const [analysisDrafts, setAnalysisDrafts] = useState({})
+  const [rejectionModal, setRejectionModal] = useState({ open: false, application: null, reason: '', error: '' })
+
   // ── Auditoría helper ────────────────────────────────────────────────────────
   const pushAudit = useCallback((accion, detalles, rol, usuario) =>
     setAuditLogs(prev => [{
@@ -677,6 +731,68 @@ export default function App() {
     }
   }, [])
 
+  const seedAnalysisDrafts = useCallback(applications => {
+    setAnalysisDrafts(prev => {
+      const next = {}
+      for (const application of applications || []) {
+        next[application.id] = prev[application.id] || {
+          financialAnalysisCompleted: Boolean(application.financialAnalysisCompleted),
+          secondaryStudiesVerificationCompleted: Boolean(application.secondaryStudiesVerificationCompleted),
+        }
+      }
+      return next
+    })
+  }, [])
+
+  const fetchStudentScholarshipApplications = useCallback(async token => {
+    if ((token || '').startsWith('contingency-token')) {
+      setStudentScholarshipApplications([])
+      setScholarshipError(`El módulo de becas requiere backend disponible para registrar la trazabilidad y la notificación a ${TRACEABILITY_EMAIL}.`)
+      return
+    }
+
+    try {
+      setScholarshipLoading(true)
+      setScholarshipError('')
+      const raw = await apiRequest('/ScholarshipApplications/mine', { method: 'GET', token })
+      setStudentScholarshipApplications(Array.isArray(raw) ? raw : [])
+    } catch (error) {
+      setStudentScholarshipApplications([])
+      setScholarshipError(error?.message || 'No fue posible cargar tus solicitudes de beca.')
+    } finally {
+      setScholarshipLoading(false)
+    }
+  }, [])
+
+  const fetchScholarshipQueues = useCallback(async token => {
+    if ((token || '').startsWith('contingency-token')) {
+      setPendingScholarshipApplications([])
+      setEconomicScholarshipApplications([])
+      setScholarshipError(`La bandeja de becas requiere backend disponible para conservar la trazabilidad nominal hacia ${TRACEABILITY_EMAIL}.`)
+      return
+    }
+
+    try {
+      setScholarshipLoading(true)
+      setScholarshipError('')
+      const [pending, economicAnalysis] = await Promise.all([
+        apiRequest('/ScholarshipApplications/pending', { method: 'GET', token }),
+        apiRequest('/ScholarshipApplications/economic-analysis', { method: 'GET', token }),
+      ])
+      const pendingRows = Array.isArray(pending) ? pending : []
+      const economicRows = Array.isArray(economicAnalysis) ? economicAnalysis : []
+      setPendingScholarshipApplications(pendingRows)
+      setEconomicScholarshipApplications(economicRows)
+      seedAnalysisDrafts(economicRows)
+    } catch (error) {
+      setPendingScholarshipApplications([])
+      setEconomicScholarshipApplications([])
+      setScholarshipError(error?.message || 'No fue posible cargar la bandeja de becas.')
+    } finally {
+      setScholarshipLoading(false)
+    }
+  }, [seedAnalysisDrafts])
+
   useEffect(() => {
     if (!isAuthenticated || !authToken) return
 
@@ -698,6 +814,19 @@ export default function App() {
     if (!isAuthenticated || !authToken || !isAdmin(activeRole) || authToken === 'contingency-token') return
     fetchAdminUsers(authToken)
   }, [isAuthenticated, authToken, activeRole, fetchAdminUsers])
+
+  useEffect(() => {
+    if (!isAuthenticated || !authToken) return
+
+    if (activeRole === 'Estudiante') {
+      fetchStudentScholarshipApplications(authToken)
+      return
+    }
+
+    if (canBackoffice(activeRole)) {
+      fetchScholarshipQueues(authToken)
+    }
+  }, [isAuthenticated, authToken, activeRole, fetchStudentScholarshipApplications, fetchScholarshipQueues])
 
   // ── Login ───────────────────────────────────────────────────────────────────
   const handleLoginChange = e => {
@@ -861,6 +990,17 @@ export default function App() {
     setStudentProfileData(null)
     setAuditLogs([])
     setAdminUsers([])
+    setScholarshipForm(emptyScholarshipForm)
+    setScholarshipFormError('')
+    setScholarshipSuccess('')
+    setStudentScholarshipApplications([])
+    setPendingScholarshipApplications([])
+    setEconomicScholarshipApplications([])
+    setScholarshipLoading(false)
+    setScholarshipError('')
+    setScholarshipActionId('')
+    setAnalysisDrafts({})
+    setRejectionModal({ open: false, application: null, reason: '', error: '' })
     setUsersError('')
     setUserForm(emptyUserForm)
     setEditingUserId(null)
@@ -868,6 +1008,180 @@ export default function App() {
     setUserSuccess('')
     setActiveTab(TAB_INICIO)
     cancelEdit()
+  }
+
+  const handleScholarshipFormChange = e => {
+    const { name, value } = e.target
+    setScholarshipForm(prev => ({ ...prev, [name]: value }))
+    setScholarshipFormError('')
+  }
+
+  const prefillScholarshipForm = beca => {
+    setScholarshipForm({
+      scholarshipName: beca?.nombre || '',
+      institutionName: beca?.entidad || '',
+      studentComment: '',
+    })
+    setScholarshipFormError('')
+    setScholarshipSuccess('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const refreshScholarshipData = useCallback(async () => {
+    if (!authToken) return
+    if (activeRole === 'Estudiante') {
+      await fetchStudentScholarshipApplications(authToken)
+      return
+    }
+    if (canBackoffice(activeRole)) {
+      await fetchScholarshipQueues(authToken)
+    }
+  }, [authToken, activeRole, fetchStudentScholarshipApplications, fetchScholarshipQueues])
+
+  const handleScholarshipSubmit = async e => {
+    e.preventDefault()
+    const validationError = validateScholarshipRequestForm(scholarshipForm)
+    if (validationError) {
+      setScholarshipFormError(validationError)
+      return
+    }
+
+    try {
+      setScholarshipActionId('create-scholarship-request')
+      setScholarshipFormError('')
+      setScholarshipSuccess('')
+      const payload = {
+        scholarshipName: scholarshipForm.scholarshipName.trim(),
+        institutionName: scholarshipForm.institutionName.trim(),
+        studentComment: (scholarshipForm.studentComment || '').trim(),
+      }
+      const created = await apiRequest('/ScholarshipApplications', { method: 'POST', token: authToken, body: payload })
+      setScholarshipForm(emptyScholarshipForm)
+      setScholarshipSuccess(`Solicitud enviada con estado ${created?.status || 'Pendiente'} y notificación visual dirigida a ${TRACEABILITY_EMAIL}.`)
+      pushAudit(
+        'CREAR_SOLICITUD_BECA',
+        `Estudiante solicitó la beca "${payload.scholarshipName}". Notificación y trazabilidad nominal: ${TRACEABILITY_EMAIL}.`,
+        activeRole,
+        TRACEABILITY_EMAIL,
+      )
+      await refreshScholarshipData()
+    } catch (error) {
+      setScholarshipFormError(error?.message || 'No se pudo registrar la solicitud de beca.')
+    } finally {
+      setScholarshipActionId('')
+    }
+  }
+
+  const handleApproveScholarship = async application => {
+    if (!application?.id || scholarshipActionId) return
+
+    try {
+      setScholarshipActionId(`approve-${application.id}`)
+      setScholarshipSuccess('')
+      setScholarshipError('')
+      await apiRequest(`/ScholarshipApplications/${application.id}/approve`, { method: 'POST', token: authToken })
+      pushAudit(
+        'APROBAR_SOLICITUD_BECA',
+        `Solicitud #${application.id} aprobada y enviada a análisis económico. Trazabilidad nominal: ${TRACEABILITY_EMAIL}.`,
+        activeRole,
+        TRACEABILITY_EMAIL,
+      )
+      await refreshScholarshipData()
+      setScholarshipSuccess(`Solicitud #${application.id} aprobada. Nueva fase: En Análisis Económico.`)
+    } catch (error) {
+      setScholarshipError(error?.message || 'No se pudo aprobar la solicitud.')
+    } finally {
+      setScholarshipActionId('')
+    }
+  }
+
+  const openRejectScholarshipModal = application => {
+    setRejectionModal({ open: true, application, reason: '', error: '' })
+  }
+
+  const closeRejectScholarshipModal = () => {
+    setRejectionModal({ open: false, application: null, reason: '', error: '' })
+  }
+
+  const handleRejectScholarship = async e => {
+    e.preventDefault()
+    const reason = (rejectionModal.reason || '').trim()
+    if (reason.length < 5) {
+      setRejectionModal(prev => ({ ...prev, error: 'Debes registrar un motivo de rechazo válido.' }))
+      return
+    }
+
+    try {
+      const applicationId = rejectionModal.application?.id
+      if (!applicationId) return
+      setScholarshipActionId(`reject-${applicationId}`)
+      setScholarshipError('')
+      await apiRequest(`/ScholarshipApplications/${applicationId}/reject`, {
+        method: 'POST',
+        token: authToken,
+        body: { rejectionReason: reason },
+      })
+      pushAudit(
+        'RECHAZAR_SOLICITUD_BECA',
+        `Solicitud #${applicationId} rechazada. Motivo: ${reason}. Trazabilidad nominal: ${TRACEABILITY_EMAIL}.`,
+        activeRole,
+        TRACEABILITY_EMAIL,
+      )
+      closeRejectScholarshipModal()
+      await refreshScholarshipData()
+      setScholarshipSuccess(`Solicitud #${applicationId} rechazada y motivo almacenado en el historial.`)
+    } catch (error) {
+      setRejectionModal(prev => ({ ...prev, error: error?.message || 'No se pudo rechazar la solicitud.' }))
+    } finally {
+      setScholarshipActionId('')
+    }
+  }
+
+  const handleAnalysisDraftChange = (applicationId, field, checked) => {
+    setAnalysisDrafts(prev => ({
+      ...prev,
+      [applicationId]: {
+        financialAnalysisCompleted: prev[applicationId]?.financialAnalysisCompleted || false,
+        secondaryStudiesVerificationCompleted: prev[applicationId]?.secondaryStudiesVerificationCompleted || false,
+        [field]: checked,
+      },
+    }))
+  }
+
+  const handleCompleteEconomicAnalysis = async application => {
+    if (!application?.id || scholarshipActionId) return
+
+    const draft = analysisDrafts[application.id] || {
+      financialAnalysisCompleted: false,
+      secondaryStudiesVerificationCompleted: false,
+    }
+
+    if (!draft.financialAnalysisCompleted || !draft.secondaryStudiesVerificationCompleted) {
+      setScholarshipError('Debes marcar ambas verificaciones antes de finalizar la solicitud.')
+      return
+    }
+
+    try {
+      setScholarshipActionId(`complete-${application.id}`)
+      setScholarshipError('')
+      await apiRequest(`/ScholarshipApplications/${application.id}/complete-economic-analysis`, {
+        method: 'POST',
+        token: authToken,
+        body: draft,
+      })
+      pushAudit(
+        'COMPLETAR_SOLICITUD_BECA',
+        `Solicitud #${application.id} completada con análisis financiero y verificación escolar. Trazabilidad nominal: ${TRACEABILITY_EMAIL}.`,
+        activeRole,
+        TRACEABILITY_EMAIL,
+      )
+      await refreshScholarshipData()
+      setScholarshipSuccess(`Solicitud #${application.id} completada correctamente.`)
+    } catch (error) {
+      setScholarshipError(error?.message || 'No se pudo finalizar la solicitud.')
+    } finally {
+      setScholarshipActionId('')
+    }
   }
 
   const resetUserForm = () => {
@@ -1497,6 +1811,13 @@ export default function App() {
           </div>
         )}
 
+        {scholarshipSuccess && (
+          <div role="status" className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 flex items-center justify-between">
+            <span>✓ {scholarshipSuccess}</span>
+            <button type="button" onClick={() => setScholarshipSuccess('')} className="ml-4 font-bold text-emerald-600 hover:text-emerald-800">✕</button>
+          </div>
+        )}
+
         {contingencyMode && (
           <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
             Modo contingencia activo: backend no disponible, operando con datos locales.
@@ -2101,6 +2422,201 @@ export default function App() {
           </section>
         )}
 
+        {activeTab === TAB_EVALUACION_BECAS && canBackoffice(activeRole) && (
+          <section className="space-y-5">
+            <div className={`${card} p-5`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-800">Bandeja de Evaluación de Becas</h2>
+                  <p className="text-sm text-slate-500">
+                    Revisión de solicitudes pendientes, fase de análisis económico y trazabilidad nominal vinculada a {TRACEABILITY_EMAIL}.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <span className="rounded-full bg-amber-100 px-3 py-1 font-semibold text-amber-800">
+                    Pendientes: {pendingScholarshipApplications.length}
+                  </span>
+                  <span className="rounded-full bg-blue-100 px-3 py-1 font-semibold text-blue-800">
+                    En Análisis: {economicScholarshipApplications.length}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {scholarshipError && (
+              <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{scholarshipError}</p>
+            )}
+
+            <div className={`${card} p-5 space-y-4`}>
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-base font-semibold text-slate-800">Solicitudes Pendientes</h3>
+                {scholarshipLoading && <span className="inline-flex items-center gap-2 text-sm text-slate-500"><InlineSpinner /> Cargando bandeja…</span>}
+              </div>
+
+              {pendingScholarshipApplications.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">
+                  No hay solicitudes pendientes en este momento.
+                </div>
+              ) : (
+                <div className="grid gap-4 xl:grid-cols-2">
+                  {pendingScholarshipApplications.map(application => (
+                    <article key={application.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="text-lg font-semibold text-slate-800">{application.scholarshipName}</h4>
+                          <p className="text-sm text-slate-500">{application.institutionName}</p>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getScholarshipStatusClasses(application.status)}`}>
+                          {application.status}
+                        </span>
+                      </div>
+
+                      <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                        <p><span className="font-medium text-slate-700">Estudiante:</span> {application.studentName}</p>
+                        <p><span className="font-medium text-slate-700">Cédula:</span> {application.studentCedula}</p>
+                        <p><span className="font-medium text-slate-700">Solicitada:</span> {fmt(application.submittedAtUtc)}</p>
+                        <p><span className="font-medium text-slate-700">Correo trazable:</span> {application.notificationEmail}</p>
+                      </div>
+
+                      {application.studentComment && (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                          <p className="font-semibold text-slate-700">Comentario del estudiante</p>
+                          <p className="mt-1">{application.studentComment}</p>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={Boolean(scholarshipActionId)}
+                          onClick={() => handleApproveScholarship(application)}
+                          className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:bg-emerald-400"
+                        >
+                          {scholarshipActionId === `approve-${application.id}` && <InlineSpinner className="border-white/50 border-t-white" />}
+                          Aprobar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={Boolean(scholarshipActionId)}
+                          onClick={() => openRejectScholarshipModal(application)}
+                          className="inline-flex items-center gap-2 rounded-lg border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                        >
+                          Rechazar
+                        </button>
+                      </div>
+
+                      {application.history?.length > 0 && (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <p className="mb-2 text-sm font-semibold text-slate-700">Historial</p>
+                          <div className="space-y-2">
+                            {application.history.map(historyItem => (
+                              <div key={historyItem.id} className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-600">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <strong className="text-slate-800">{getScholarshipHistoryActionLabel(historyItem.action)}</strong>
+                                  <span className="text-xs text-slate-500">{fmt(historyItem.createdAtUtc)}</span>
+                                </div>
+                                <p className="mt-1">{historyItem.notes}</p>
+                                <p className="mt-1 text-xs text-slate-500">Actor: {historyItem.actorRole} · Correo: {historyItem.actorEmail}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className={`${card} p-5 space-y-4`}>
+              <h3 className="text-base font-semibold text-slate-800">Fase de Análisis Económico</h3>
+
+              {economicScholarshipApplications.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">
+                  No hay solicitudes en análisis económico.
+                </div>
+              ) : (
+                <div className="grid gap-4 xl:grid-cols-2">
+                  {economicScholarshipApplications.map(application => {
+                    const draft = analysisDrafts[application.id] || {
+                      financialAnalysisCompleted: Boolean(application.financialAnalysisCompleted),
+                      secondaryStudiesVerificationCompleted: Boolean(application.secondaryStudiesVerificationCompleted),
+                    }
+
+                    return (
+                      <article key={application.id} className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 space-y-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h4 className="text-lg font-semibold text-slate-800">{application.scholarshipName}</h4>
+                            <p className="text-sm text-slate-500">{application.studentName} · {application.studentCedula}</p>
+                          </div>
+                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getScholarshipStatusClasses(application.status)}`}>
+                            {application.status}
+                          </span>
+                        </div>
+
+                        <div className="rounded-xl border border-blue-200 bg-white p-4 space-y-3">
+                          <label className="flex items-start gap-3 text-sm text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={draft.financialAnalysisCompleted}
+                              onChange={e => handleAnalysisDraftChange(application.id, 'financialAnalysisCompleted', e.target.checked)}
+                              className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-500"
+                            />
+                            <span>Análisis financiero completado.</span>
+                          </label>
+                          <label className="flex items-start gap-3 text-sm text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={draft.secondaryStudiesVerificationCompleted}
+                              onChange={e => handleAnalysisDraftChange(application.id, 'secondaryStudiesVerificationCompleted', e.target.checked)}
+                              className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-500"
+                            />
+                            <span>Verificación de conclusión de estudios secundarios completada.</span>
+                          </label>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
+                          <p><span className="font-medium text-slate-700">Correo trazable:</span> {application.notificationEmail}</p>
+                          <p><span className="font-medium text-slate-700">Aprobada el:</span> {application.reviewedAtUtc ? fmt(application.reviewedAtUtc) : '—'}</p>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={Boolean(scholarshipActionId) || !draft.financialAnalysisCompleted || !draft.secondaryStudiesVerificationCompleted}
+                          onClick={() => handleCompleteEconomicAnalysis(application)}
+                          className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:bg-blue-300"
+                        >
+                          {scholarshipActionId === `complete-${application.id}` && <InlineSpinner className="border-white/50 border-t-white" />}
+                          Finalizar flujo
+                        </button>
+
+                        {application.history?.length > 0 && (
+                          <div className="rounded-xl border border-slate-200 bg-white p-3">
+                            <p className="mb-2 text-sm font-semibold text-slate-700">Historial</p>
+                            <div className="space-y-2">
+                              {application.history.map(historyItem => (
+                                <div key={historyItem.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <strong className="text-slate-800">{getScholarshipHistoryActionLabel(historyItem.action)}</strong>
+                                    <span className="text-xs text-slate-500">{fmt(historyItem.createdAtUtc)}</span>
+                                  </div>
+                                  <p className="mt-1">{historyItem.notes}</p>
+                                  <p className="mt-1 text-xs text-slate-500">Actor: {historyItem.actorRole} · Correo: {historyItem.actorEmail}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </article>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
         {/* ═══ ESTUDIANTIL: MI PERFIL ═══ */}
         {activeTab === TAB_PERFIL && !canBackoffice(activeRole) && (
           <section className="space-y-4">
@@ -2219,8 +2735,70 @@ export default function App() {
             <div className={`${card} p-5`}>
               <h2 className="text-base font-semibold text-slate-800 mb-1">Oportunidades y Becas</h2>
               <p className="text-sm text-slate-500">
-                Programas disponibles para el ciclo escolar 2025–2026. Verifica los requisitos y aplica antes del cierre.
+                Programas disponibles para el ciclo escolar 2025–2026. Verifica los requisitos, solicita la beca y genera trazabilidad nominal hacia {TRACEABILITY_EMAIL}.
               </p>
+            </div>
+            {scholarshipError && (
+              <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{scholarshipError}</p>
+            )}
+            <div className={`${card} p-5 space-y-4`}>
+              <div>
+                <h3 className="text-base font-semibold text-slate-800">Solicitar Beca</h3>
+                <p className="text-sm text-slate-500">
+                  Toda solicitud se registra con estado Pendiente y muestra una notificación visual al correo {TRACEABILITY_EMAIL}.
+                </p>
+              </div>
+
+              <form onSubmit={handleScholarshipSubmit} className="grid gap-3 lg:grid-cols-2" noValidate>
+                <label className="grid gap-1">
+                  <span className="text-sm text-slate-600">Nombre de la beca</span>
+                  <input
+                    type="text"
+                    name="scholarshipName"
+                    value={scholarshipForm.scholarshipName}
+                    onChange={handleScholarshipFormChange}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                    placeholder="Beca MESCYT Excelencia"
+                  />
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-sm text-slate-600">Institución</span>
+                  <input
+                    type="text"
+                    name="institutionName"
+                    value={scholarshipForm.institutionName}
+                    onChange={handleScholarshipFormChange}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                    placeholder="MESCYT"
+                  />
+                </label>
+                <label className="grid gap-1 lg:col-span-2">
+                  <span className="text-sm text-slate-600">Comentario del estudiante</span>
+                  <textarea
+                    name="studentComment"
+                    rows="3"
+                    value={scholarshipForm.studentComment}
+                    onChange={handleScholarshipFormChange}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                    placeholder="Describe brevemente por qué solicitas la beca."
+                  />
+                </label>
+                <div className="flex flex-wrap items-center gap-3 lg:col-span-2">
+                  <button
+                    type="submit"
+                    disabled={scholarshipActionId === 'create-scholarship-request' || contingencyMode}
+                    className="inline-flex items-center gap-2 rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:bg-violet-400"
+                  >
+                    {scholarshipActionId === 'create-scholarship-request' && <InlineSpinner className="border-white/50 border-t-white" />}
+                    Solicitar Beca
+                  </button>
+                  <span className="text-xs text-slate-500">Notificación visible: {TRACEABILITY_EMAIL}</span>
+                </div>
+              </form>
+
+              {scholarshipFormError && (
+                <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{scholarshipFormError}</p>
+              )}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               {DEMO_BECAS.map(beca => (
@@ -2234,17 +2812,128 @@ export default function App() {
                     <p><span className="font-medium text-slate-700">Requisito:</span> {beca.requisito}</p>
                     <p><span className="font-medium text-slate-700">Cierre:</span> {fmtDate(beca.cierre)}</p>
                   </div>
-                  <a href={beca.url} target="_blank" rel="noopener noreferrer"
-                    className="inline-block rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
-                    Más información →
-                  </a>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => prefillScholarshipForm(beca)}
+                      className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors"
+                    >
+                      Solicitar esta beca
+                    </button>
+                    <a href={beca.url} target="_blank" rel="noopener noreferrer"
+                      className="inline-block rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+                      Más información →
+                    </a>
+                  </div>
                 </article>
               ))}
+            </div>
+            <div className={`${card} p-5 space-y-4`}>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-base font-semibold text-slate-800">Mis Solicitudes</h3>
+                {scholarshipLoading && <span className="inline-flex items-center gap-2 text-sm text-slate-500"><InlineSpinner /> Cargando…</span>}
+              </div>
+
+              {studentScholarshipApplications.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">
+                  Aún no has registrado solicitudes de beca.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {studentScholarshipApplications.map(application => (
+                    <article key={application.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h4 className="text-lg font-semibold text-slate-800">{application.scholarshipName}</h4>
+                          <p className="text-sm text-slate-500">{application.institutionName}</p>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getScholarshipStatusClasses(application.status)}`}>
+                          {application.status}
+                        </span>
+                      </div>
+
+                      <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                        <p><span className="font-medium text-slate-700">Fecha de envío:</span> {fmt(application.submittedAtUtc)}</p>
+                        <p><span className="font-medium text-slate-700">Correo notificado:</span> {application.notificationEmail}</p>
+                      </div>
+
+                      {application.rejectionReason && (
+                        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                          <p className="font-semibold">Motivo de rechazo</p>
+                          <p className="mt-1">{application.rejectionReason}</p>
+                        </div>
+                      )}
+
+                      {application.history?.length > 0 && (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <p className="mb-2 text-sm font-semibold text-slate-700">Historial de la solicitud</p>
+                          <div className="space-y-2">
+                            {application.history.map(historyItem => (
+                              <div key={historyItem.id} className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-600">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <strong className="text-slate-800">{getScholarshipHistoryActionLabel(historyItem.action)}</strong>
+                                  <span className="text-xs text-slate-500">{fmt(historyItem.createdAtUtc)}</span>
+                                </div>
+                                <p className="mt-1">{historyItem.notes}</p>
+                                <p className="mt-1 text-xs text-slate-500">Actor: {historyItem.actorRole} · Correo: {historyItem.actorEmail}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              )}
             </div>
             <p className="text-xs text-center text-slate-600 pb-2">
               La información de becas es referencial. Consulta los portales oficiales para datos actualizados.
             </p>
           </section>
+        )}
+
+        {rejectionModal.open && (
+          <div className="fixed inset-0 z-20 flex items-center justify-center bg-slate-950/50 px-4 py-6">
+            <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800">Rechazar solicitud</h3>
+                <p className="text-sm text-slate-500">
+                  Debes registrar el motivo de rechazo para la solicitud #{rejectionModal.application?.id} y dejarlo visible en el historial.
+                </p>
+              </div>
+
+              <form onSubmit={handleRejectScholarship} className="space-y-4">
+                <label className="grid gap-1">
+                  <span className="text-sm text-slate-600">Motivo de Rechazo</span>
+                  <textarea
+                    value={rejectionModal.reason}
+                    rows="4"
+                    onChange={e => setRejectionModal(prev => ({ ...prev, reason: e.target.value, error: '' }))}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:outline-none"
+                    placeholder="Explica la razón del rechazo para fines de trazabilidad."
+                  />
+                </label>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                  <p><span className="font-medium text-slate-700">Correo trazable:</span> {TRACEABILITY_EMAIL}</p>
+                </div>
+
+                {rejectionModal.error && (
+                  <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{rejectionModal.error}</p>
+                )}
+
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button type="button" onClick={closeRejectScholarshipModal} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                    Cancelar
+                  </button>
+                  <button type="submit" disabled={Boolean(scholarshipActionId)} className="inline-flex items-center gap-2 rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 disabled:bg-rose-400">
+                    {Boolean(scholarshipActionId) && <InlineSpinner className="border-white/50 border-t-white" />}
+                    Confirmar rechazo
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         )}
 
       </main>

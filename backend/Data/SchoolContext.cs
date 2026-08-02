@@ -13,6 +13,8 @@ namespace EDUMETRICS_DR.Data
         public DbSet<Asignatura> Asignaturas => Set<Asignatura>();
         public DbSet<User> Users => Set<User>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+        public DbSet<ScholarshipApplication> ScholarshipApplications => Set<ScholarshipApplication>();
+        public DbSet<ScholarshipApplicationHistory> ScholarshipApplicationHistories => Set<ScholarshipApplicationHistory>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -42,6 +44,39 @@ namespace EDUMETRICS_DR.Data
                 entity.HasOne(e => e.Student)
                     .WithMany(s => s.Asignaturas)
                     .HasForeignKey(e => e.StudentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<ScholarshipApplication>(entity =>
+            {
+                entity.HasIndex(e => e.Status);
+                entity.Property(e => e.Status)
+                    .HasMaxLength(80)
+                    .IsRequired();
+
+                entity.Property(e => e.NotificationEmail)
+                    .HasMaxLength(200)
+                    .IsRequired();
+
+                entity.HasOne(e => e.Student)
+                    .WithMany()
+                    .HasForeignKey(e => e.StudentId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<ScholarshipApplicationHistory>(entity =>
+            {
+                entity.Property(e => e.Action)
+                    .HasMaxLength(100)
+                    .IsRequired();
+
+                entity.Property(e => e.ActorEmail)
+                    .HasMaxLength(200)
+                    .IsRequired();
+
+                entity.HasOne(e => e.ScholarshipApplication)
+                    .WithMany(e => e.History)
+                    .HasForeignKey(e => e.ScholarshipApplicationId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
