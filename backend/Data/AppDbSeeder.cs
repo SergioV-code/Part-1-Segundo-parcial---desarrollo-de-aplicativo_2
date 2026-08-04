@@ -178,6 +178,11 @@ public static class AppDbSeeder
 
     private static async Task EnsureUserRoleConstraintAsync(SchoolContext context, CancellationToken cancellationToken)
     {
+        if (!context.Database.IsRelational())
+        {
+            return;
+        }
+
         const string sql = """
             IF OBJECT_ID(N'[dbo].[Users]', N'U') IS NOT NULL
             BEGIN

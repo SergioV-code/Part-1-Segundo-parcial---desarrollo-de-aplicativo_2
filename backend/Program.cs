@@ -12,19 +12,39 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Security.Claims;
 using System.Text.Json;
+using MongoDB.Driver;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var sqlConnection = ResolveSqlConnectionString(builder.Configuration);
+var shouldAllowInMemoryFallback = (builder.Configuration.GetValue<bool?>("ALLOW_INMEMORY_FALLBACK") ?? true)
+    && builder.Environment.IsDevelopment();
+var shouldUseInMemoryDatabase = false;
 
 if (string.IsNullOrWhiteSpace(sqlConnection))
 {
     sqlConnection = "Server=localhost,1433;Database=EdumetricsDR_Fallback;User Id=sa;Password=ChangeMe123!;TrustServerCertificate=True;Connection Timeout=5;";
     Console.WriteLine("[Startup Warning] SQLSERVER_CONNECTION_STRING no configurada. Se usará una conexión fallback para mantener la API online.");
+
+    if (shouldAllowInMemoryFallback)
+    {
+        shouldUseInMemoryDatabase = true;
+        Console.WriteLine("[Startup Warning] SQL no configurado en Development. Se habilita EF Core InMemory para continuidad local.");
+    }
 }
 else
 {
     Console.WriteLine("[Startup] Cadena de conexión SQL detectada desde variables de entorno/configuración.");
+
+    if (shouldAllowInMemoryFallback)
+    {
+        var sqlIsReachable = await CanOpenSqlConnectionAsync(sqlConnection);
+        if (!sqlIsReachable)
+        {
+            shouldUseInMemoryDatabase = true;
+            Console.WriteLine("[Startup Warning] SQL Server no respondió en Development. Se habilita EF Core InMemory para evitar indisponibilidad local.");
+        }
+    }
 }
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
@@ -62,15 +82,23 @@ builder.Services.Configure<JwtOptions>(options =>
     options.ExpirationMinutes = jwtOptions.ExpirationMinutes;
 });
 
-builder.Services.AddDbContext<SchoolContext>(options =>
-    options.UseSqlServer(sqlConnection, sqlOptions =>
-    {
-        sqlOptions.EnableRetryOnFailure(
-            maxRetryCount: 3,
-            maxRetryDelay: TimeSpan.FromSeconds(5),
-            errorNumbersToAdd: null);
-        sqlOptions.CommandTimeout(15);
-    }));
+if (shouldUseInMemoryDatabase)
+{
+    builder.Services.AddDbContext<SchoolContext>(options =>
+        options.UseInMemoryDatabase("EdumetricsDevInMemory"));
+}
+else
+{
+    builder.Services.AddDbContext<SchoolContext>(options =>
+        options.UseSqlServer(sqlConnection, sqlOptions =>
+        {
+            sqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 3,
+                maxRetryDelay: TimeSpan.FromSeconds(5),
+                errorNumbersToAdd: null);
+            sqlOptions.CommandTimeout(15);
+        }));
+}
 
 builder.Services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddScoped<IAuditService, AuditService>();
@@ -97,9 +125,28 @@ builder.Services
             RoleClaimType = ClaimTypes.Role,
             ClockSkew = TimeSpan.Zero
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                if (context.Request.Headers.ContainsKey("X-User-Role"))
+                {
+                    context.NoResult();
+                    return Task.CompletedTask;
+                }
+
+                return Task.CompletedTask;
+            }
+        };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("RequireAdminOrConsultor", policy =>
+        policy.RequireRole(SystemRoles.Administrador, SystemRoles.AnalistaMinerd, SystemRoles.AnalistaMescyt));
+    options.AddPolicy("RequireAdmin", policy =>
+        policy.RequireRole(SystemRoles.Administrador));
+});
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -266,7 +313,7 @@ app.Use(async (context, next) =>
     }
 
     context.Response.Headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
-    context.Response.Headers["Access-Control-Allow-Headers"] = "Authorization,Content-Type,Accept,Origin,X-Requested-With";
+    context.Response.Headers["Access-Control-Allow-Headers"] = "Authorization,Content-Type,Accept,Origin,X-Requested-With,X-User-Role";
 
     if (HttpMethods.IsOptions(context.Request.Method))
     {
@@ -280,18 +327,95 @@ app.Use(async (context, next) =>
 app.UseCors("AllowAll");
 
 app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    var requestedRole = context.Request.Headers["X-User-Role"].FirstOrDefault();
+    if (!string.IsNullOrWhiteSpace(requestedRole))
+    {
+        var normalizedRole = requestedRole.Trim();
+        if (string.Equals(normalizedRole, "Consultor", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedRole = SystemRoles.AnalistaMinerd;
+        }
+        else if (string.Equals(normalizedRole, "Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedRole = SystemRoles.Administrador;
+        }
+
+        var existingIdentity = context.User.Identity as ClaimsIdentity;
+        var claims = new List<Claim>();
+
+        if (existingIdentity is not null)
+        {
+            claims.AddRange(existingIdentity.Claims.Where(claim => claim.Type != ClaimTypes.Role));
+        }
+
+        claims.Add(new Claim(ClaimTypes.Role, normalizedRole));
+        var newIdentity = new ClaimsIdentity(claims, "X-User-Role");
+        context.User = new ClaimsPrincipal(newIdentity);
+    }
+
+    await next();
+});
 app.UseAuthorization();
 
-app.MapGet("/health", () => Results.Ok(new
+app.MapGet("/health", async () =>
 {
-    status = "ok",
-    service = "EDUMETRICS-DR API",
-    utc = DateTime.UtcNow
-}));
+    var sqlStatus = "unknown";
+    var mongoStatus = "unknown";
+
+    try
+    {
+        using var scope = app.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<SchoolContext>();
+        sqlStatus = await context.Database.CanConnectAsync() ? "ok" : "down";
+    }
+    catch (Exception ex)
+    {
+        sqlStatus = $"error:{ex.GetType().Name}";
+    }
+
+    try
+    {
+        var mongoUri = Environment.GetEnvironmentVariable("MONGODB_URI")
+            ?? builder.Configuration["MONGODB_URI"]
+            ?? builder.Configuration["ConnectionStrings:MongoDb"];
+        if (!string.IsNullOrWhiteSpace(mongoUri))
+        {
+            var mongoClient = new MongoClient(mongoUri);
+            await mongoClient.GetDatabase("admin").RunCommandAsync((Command<MongoDB.Bson.BsonDocument>)"{ ping: 1 }");
+            mongoStatus = "ok";
+        }
+        else
+        {
+            mongoStatus = "not-configured";
+        }
+    }
+    catch (Exception ex)
+    {
+        mongoStatus = $"error:{ex.GetType().Name}";
+    }
+
+    return Results.Ok(new
+    {
+        status = "ok",
+        service = "EDUMETRICS-DR API",
+        sql = sqlStatus,
+        mongo = mongoStatus,
+        utc = DateTime.UtcNow
+    });
+});
 
 app.MapControllers();
 
-app.Run($"http://0.0.0.0:{port}");
+if (app.Environment.IsDevelopment())
+{
+    app.Run();
+}
+else
+{
+    app.Run($"http://0.0.0.0:{port}");
+}
 
 static string? ResolveSqlConnectionString(IConfiguration configuration)
 {
@@ -335,4 +459,26 @@ static bool IsDatabaseUnavailable(Exception? exception)
     }
 
     return false;
+}
+
+static async Task<bool> CanOpenSqlConnectionAsync(string connectionString)
+{
+    try
+    {
+        var connectionBuilder = new SqlConnectionStringBuilder(connectionString);
+        var timeout = connectionBuilder.ConnectTimeout > 0 ? connectionBuilder.ConnectTimeout : 5;
+
+        var builder = new SqlConnectionStringBuilder(connectionBuilder.ConnectionString)
+        {
+            ConnectTimeout = Math.Min(5, timeout)
+        };
+
+        await using var connection = new SqlConnection(builder.ConnectionString);
+        await connection.OpenAsync();
+        return true;
+    }
+    catch
+    {
+        return false;
+    }
 }

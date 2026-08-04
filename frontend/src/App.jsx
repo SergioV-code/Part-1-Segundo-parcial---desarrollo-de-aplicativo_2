@@ -10,16 +10,27 @@ const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim()
 const normalizedApiUrl = rawApiUrl.replace(/\/$/, '')
 const fallbackOrigin = typeof window !== 'undefined' ? window.location.origin : ''
 const sameOriginApi = fallbackOrigin ? `${fallbackOrigin}/api` : ''
-const API_BASE = normalizedApiUrl
-  ? normalizedApiUrl.endsWith('/api') ? normalizedApiUrl : `${normalizedApiUrl}/api`
-  : PRODUCTION_API_BASE
+const isLocalHost = /localhost|127\.0\.0\.1/i.test(fallbackOrigin)
 
-const localFallbackApi = fallbackOrigin.includes('localhost') ? `${fallbackOrigin}/api` : ''
+const LOCAL_BACKEND_API_CANDIDATES = isLocalHost
+  ? [
+      'http://localhost:5123/api',
+      'https://localhost:7089/api',
+      'http://localhost:8080/api',
+      'http://127.0.0.1:5123/api',
+      'https://127.0.0.1:7089/api',
+      'http://127.0.0.1:8080/api',
+    ]
+  : []
+
+const configuredApiBase = normalizedApiUrl
+  ? normalizedApiUrl.endsWith('/api') ? normalizedApiUrl : `${normalizedApiUrl}/api`
+  : ''
 
 const API_BASE_CANDIDATES = Array.from(new Set([
+  configuredApiBase,
+  ...LOCAL_BACKEND_API_CANDIDATES,
   sameOriginApi,
-  API_BASE,
-  localFallbackApi,
   PRODUCTION_API_BASE,
 ].filter(Boolean)))
 
@@ -38,10 +49,11 @@ const AUTH_REQUEST_TIMEOUT_MS = 30000
  * @param {object} options.body    – payload para POST / PUT (se serializa a JSON)
  * @returns {Promise<any>} – JSON parseado o null si sin body
  */
-async function apiRequest(path, { method = 'GET', token = '', body = null } = {}) {
+async function apiRequest(path, { method = 'GET', token = '', body = null, role = '' } = {}) {
   const headers = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(body ? { 'Content-Type': 'application/json' } : {}),
+    ...(role ? { 'X-User-Role': role } : {}),
   }
 
   let lastError = null
@@ -134,7 +146,7 @@ async function apiRequest(path, { method = 'GET', token = '', body = null } = {}
 
   const message = lastError?.message || ''
   if (/Failed to fetch|NetworkError|Load failed|Timeout|AbortError|HTTP 404|HTTP 405/i.test(message)) {
-    throw new Error('No fue posible conectar con la API. Verifica que el backend de Railway esté activo y respondiendo (health endpoint).')
+    throw new Error('No fue posible conectar con la API. Verifica que el backend configurado esté activo y respondiendo (health endpoint).')
   }
 
   throw new Error(`Error de red: ${message || 'conexión no disponible'}`)
@@ -161,15 +173,14 @@ const TAB_BECAS  = 'Oportunidades y Becas'
 const STU_TABS   = [TAB_PERFIL, TAB_PENSUM, TAB_BECAS]
 const TRACEABILITY_EMAIL = 'sergiovargasdiaz316@gmail.com'
 
-const ROLES = ['Analista MINERD', 'Analista MESCYT', 'Estudiante', 'Administrador']
+const ROLES = ['Analista MESCYT/MINERD', 'Estudiante', 'Administrador']
 const ROL_COLORS = {
-  'Analista MINERD': { bg: '#0f3a7a', badge: 'bg-blue-100 text-blue-900' },
-  'Analista MESCYT': { bg: '#075985', badge: 'bg-cyan-100 text-cyan-900' },
+  'Analista MESCYT/MINERD': { bg: '#0f3a7a', badge: 'bg-blue-100 text-blue-900' },
   'Estudiante':      { bg: '#166534', badge: 'bg-emerald-100 text-emerald-900' },
   'Administrador':   { bg: '#4c1d95', badge: 'bg-violet-100 text-violet-900' },
 }
 
-const isGov = rol => rol === 'Analista MINERD' || rol === 'Analista MESCYT'
+const isGov = rol => rol === 'Analista MESCYT/MINERD'
 const isAdmin = rol => rol === 'Administrador'
 const canBackoffice = rol => isGov(rol) || isAdmin(rol)
 
@@ -185,48 +196,134 @@ const DEMO_PENSUM = [
   { codigo: 'ING-101', nombre: 'Inglés Técnico I',     creditos: 3, estado: 'Aprobada',  nota: 85   },
 ]
 
-const DEMO_BECAS = [
-  {
-    nombre: 'Beca MESCYT Excelencia',
-    entidad: 'MESCYT',
-    monto: 'RD$ 25,000 / año',
-    requisito: 'Promedio ≥ 85 | Modalidad Académica',
-    cierre: '2026-08-31',
-    url: 'https://mescyt.gob.do',
-    color: 'border-blue-300 bg-blue-50',
-    badge: 'bg-blue-100 text-blue-800',
-  },
-  {
-    nombre: 'Beca Técnico Profesional INFOTEP',
-    entidad: 'INFOTEP',
-    monto: 'Costo de curso cubierto',
-    requisito: 'Modalidad Técnico Profesional',
-    cierre: '2026-09-15',
-    url: 'https://infotep.gob.do',
-    color: 'border-emerald-300 bg-emerald-50',
-    badge: 'bg-emerald-100 text-emerald-800',
-  },
-  {
-    nombre: 'Programa Jóvenes con Futuro',
-    entidad: 'MINERD',
-    monto: 'RD$ 15,000 / semestre',
-    requisito: 'Nivel secundario | Zona rural prioritaria',
-    cierre: '2026-10-01',
-    url: 'https://minerd.gob.do',
-    color: 'border-violet-300 bg-violet-50',
-    badge: 'bg-violet-100 text-violet-800',
-  },
-  {
-    nombre: 'Beca BID Innovación STEM',
-    entidad: 'Banco Interamericano de Desarrollo',
-    monto: 'US$ 5,000',
-    requisito: 'Proyecto STEM aprobado | Promedio ≥ 90',
-    cierre: '2026-11-30',
-    url: 'https://iadb.org',
-    color: 'border-amber-300 bg-amber-50',
-    badge: 'bg-amber-100 text-amber-800',
-  },
-]
+function buildScholarshipCards(carrera = '', ies = '') {
+  const carreraTexto = (carrera || '').toString().trim().toLowerCase()
+  const iesTexto = (ies || '').toString().trim().toLowerCase()
+
+  const basePrograms = [
+    {
+      nombre: `Beca MESCYT de Excelencia - ${carreraTexto || 'Carrera'}`,
+      entidad: 'MESCYT/MINERD',
+      monto: 'RD$ 25,000 / año o hasta 100% de matrícula según criterio institucional',
+      requisito: 'Promedio mínimo 85 o índice equivalente y perfil académico alineado con la carrera',
+      cierre: '2026-08-31',
+      url: 'https://mescyt.gob.do',
+      color: 'border-blue-300 bg-blue-50',
+      badge: 'bg-blue-100 text-blue-800',
+    },
+    {
+      nombre: `Beca de Permanencia Académica - ${carreraTexto || 'Carrera'}`,
+      entidad: 'MESCYT/MINERD',
+      monto: 'RD$ 15,000 / semestre o apoyo parcial de matrícula',
+      requisito: 'Promedio mínimo 80, continuidad académica y cumplimiento de carga mínima',
+      cierre: '2026-09-15',
+      url: 'https://minerd.gob.do',
+      color: 'border-emerald-300 bg-emerald-50',
+      badge: 'bg-emerald-100 text-emerald-800',
+    },
+    {
+      nombre: `Beca Institucional de Movilidad - ${carreraTexto || 'Carrera'}`,
+      entidad: iesTexto || 'IES seleccionada',
+      monto: 'Cobertura parcial o total de matrícula según convenio institucional',
+      requisito: 'Aceptación en la IES, buen rendimiento académico y cumplimiento de requisitos del convenio',
+      cierre: '2026-10-01',
+      url: 'https://www.educando.edu.do',
+      color: 'border-violet-300 bg-violet-50',
+      badge: 'bg-violet-100 text-violet-800',
+    },
+    {
+      nombre: `Beca de Investigación y Talento - ${carreraTexto || 'Carrera'}`,
+      entidad: 'MESCYT/MINERD',
+      monto: 'RD$ 30,000 / año o apoyo especializado para proyectos',
+      requisito: 'Promedio mínimo 90, evidencia de desempeño y alineación con programas de investigación',
+      cierre: '2026-11-30',
+      url: 'https://mescyt.gob.do',
+      color: 'border-amber-300 bg-amber-50',
+      badge: 'bg-amber-100 text-amber-800',
+    },
+  ]
+
+  const institutionalMatches = []
+  if (iesTexto.includes('itla')) {
+    institutionalMatches.push({
+      nombre: `Beca ITLA de Carrera - ${carreraTexto || 'Carrera'}`,
+      entidad: 'ITLA',
+      monto: 'Cobertura parcial de matrícula',
+      requisito: 'Promedio mínimo 80 y matrícula activa en programas técnicos o tecnológicos',
+      cierre: '2026-09-20',
+      url: 'https://www.itla.edu.do',
+      color: 'border-slate-300 bg-slate-100',
+      badge: 'bg-slate-100 text-slate-800',
+    })
+  }
+
+  if (iesTexto.includes('uasd')) {
+    institutionalMatches.push({
+      nombre: `Beca UASD de Excelencia - ${carreraTexto || 'Carrera'}`,
+      entidad: 'UASD',
+      monto: 'Apoyo parcial de matrícula',
+      requisito: 'Promedio mínimo 85 y permanencia institucional',
+      cierre: '2026-09-25',
+      url: 'https://www.uasd.edu.do',
+      color: 'border-rose-300 bg-rose-50',
+      badge: 'bg-rose-100 text-rose-800',
+    })
+  }
+
+  if (iesTexto.includes('pucmm')) {
+    institutionalMatches.push({
+      nombre: `Beca PUCMM de Excelencia - ${carreraTexto || 'Carrera'}`,
+      entidad: 'PUCMM',
+      monto: 'Cobertura parcial o total según beca institucional',
+      requisito: 'Promedio mínimo 88 y perfil de liderazgo académico',
+      cierre: '2026-10-10',
+      url: 'https://www.pucmm.edu.do',
+      color: 'border-indigo-300 bg-indigo-50',
+      badge: 'bg-indigo-100 text-indigo-800',
+    })
+  }
+
+  if (iesTexto.includes('unapec')) {
+    institutionalMatches.push({
+      nombre: `Beca UNAPEC de Carrera - ${carreraTexto || 'Carrera'}`,
+      entidad: 'UNAPEC',
+      monto: 'Apoyo de matrícula y costos administrativos',
+      requisito: 'Promedio mínimo 82 y cumplimiento de requisitos de admisión',
+      cierre: '2026-10-15',
+      url: 'https://www.unapec.edu.do',
+      color: 'border-cyan-300 bg-cyan-50',
+      badge: 'bg-cyan-100 text-cyan-800',
+    })
+  }
+
+  if (iesTexto.includes('unphu')) {
+    institutionalMatches.push({
+      nombre: `Beca UNPHU de Permanencia - ${carreraTexto || 'Carrera'}`,
+      entidad: 'UNPHU',
+      monto: 'Cobertura parcial de matrícula',
+      requisito: 'Promedio mínimo 84 y continuidad en el programa',
+      cierre: '2026-10-20',
+      url: 'https://www.unphu.edu.do',
+      color: 'border-lime-300 bg-lime-50',
+      badge: 'bg-lime-100 text-lime-800',
+    })
+  }
+
+  if (iesTexto.includes('utesa')) {
+    institutionalMatches.push({
+      nombre: `Beca UTESA de Talento - ${carreraTexto || 'Carrera'}`,
+      entidad: 'UTESA',
+      monto: 'Apoyo parcial de matrícula',
+      requisito: 'Promedio mínimo 86 y perfil de liderazgo académico',
+      cierre: '2026-10-25',
+      url: 'https://www.utesa.edu',
+      color: 'border-orange-300 bg-orange-50',
+      badge: 'bg-orange-100 text-orange-800',
+    })
+  }
+
+  return [...basePrograms, ...institutionalMatches]
+}
 
 const FALLBACK_EXPEDIENTES = Array.from({ length: 50 }, (_, idx) => {
   const i = idx + 1
@@ -304,8 +401,7 @@ function exportDateLabel() {
 
 function hasValidDomainByRole(rol, usuario) {
   const value = sanitizeInstitutionalUser(usuario)
-  if (rol === 'Analista MINERD') return value.endsWith('@minerd.gob.do')
-  if (rol === 'Analista MESCYT') return value.endsWith('@mescyt.gob.do')
+  if (rol === 'Analista MESCYT/MINERD') return value.endsWith('@minerd.gob.do') || value.endsWith('@mescyt.gob.do')
   return true
 }
 
@@ -355,8 +451,7 @@ function getModalidadBadgeClasses(modalidad) {
 
 function getUserRoleBadgeClasses(role) {
   if (role === 'Administrador') return 'bg-violet-100 text-violet-800'
-  if (role === 'Analista MINERD') return 'bg-blue-100 text-blue-800'
-  if (role === 'Analista MESCYT') return 'bg-cyan-100 text-cyan-800'
+  if (role === 'Analista MESCYT/MINERD') return 'bg-blue-100 text-blue-800'
   return 'bg-emerald-100 text-emerald-800'
 }
 
@@ -431,12 +526,8 @@ function validateAccessUserForm(form, isEditing) {
     return 'El correo institucional es obligatorio para esta cuenta.'
   }
 
-  if (role === 'Analista MINERD' && !correo.endsWith('@minerd.gob.do')) {
-    return 'El correo para Analista MINERD debe terminar en @minerd.gob.do.'
-  }
-
-  if (role === 'Analista MESCYT' && !correo.endsWith('@mescyt.gob.do')) {
-    return 'El correo para Analista MESCYT debe terminar en @mescyt.gob.do.'
+  if (role === 'Analista MESCYT/MINERD' && !correo.endsWith('@minerd.gob.do') && !correo.endsWith('@mescyt.gob.do')) {
+    return 'El correo para Analista MESCYT/MINERD debe terminar en @minerd.gob.do o @mescyt.gob.do.'
   }
 
   if (!isEditing && password.length < 8) {
@@ -451,18 +542,24 @@ function validateAccessUserForm(form, isEditing) {
 }
 
 function validateScholarshipRequestForm(form) {
-  const scholarshipName = (form.scholarshipName || '').trim()
   const institutionName = (form.institutionName || '').trim()
-
-  if (scholarshipName.length < 4) {
-    return 'Selecciona o indica una beca válida para continuar.'
-  }
+  const careerName = (form.careerName || '').trim()
 
   if (institutionName.length < 3) {
     return 'La institución de la beca es obligatoria.'
   }
 
+  if (careerName.length < 3) {
+    return 'La carrera a la que postula es obligatoria.'
+  }
+
   return ''
+}
+
+function getAutoScholarshipName(form) {
+  const institutionName = (form?.institutionName || '').trim()
+  const careerName = (form?.careerName || '').trim()
+  return `Beca ${institutionName || 'MESCYT/MINERD'} - ${careerName || 'Programa universitario'}`
 }
 
 function getScholarshipStatusClasses(status) {
@@ -632,7 +729,7 @@ export default function App() {
   // Administración de usuarios
   const emptyUserForm = {
     nombreCompleto: '',
-    rol: 'Analista MINERD',
+    rol: 'Analista MESCYT/MINERD',
     cedula: '',
     correoInstitucional: '',
     password: '',
@@ -652,6 +749,7 @@ export default function App() {
   const emptyScholarshipForm = {
     scholarshipName: '',
     institutionName: '',
+    careerName: '',
     studentComment: '',
   }
   const [scholarshipForm, setScholarshipForm] = useState(emptyScholarshipForm)
@@ -854,13 +952,8 @@ export default function App() {
     }
 
     if (!esEstudiante) {
-      if (loginForm.rol === 'Analista MINERD' && !usuario.endsWith('@minerd.gob.do')) {
-        setLoginError('Para Analista MINERD el correo debe terminar en @minerd.gob.do.')
-        return
-      }
-
-      if (loginForm.rol === 'Analista MESCYT' && !usuario.endsWith('@mescyt.gob.do')) {
-        setLoginError('Para Analista MESCYT el correo debe terminar en @mescyt.gob.do.')
+      if (loginForm.rol === 'Analista MESCYT/MINERD' && !usuario.endsWith('@minerd.gob.do') && !usuario.endsWith('@mescyt.gob.do')) {
+        setLoginError('Para Analista MESCYT/MINERD el correo debe terminar en @minerd.gob.do o @mescyt.gob.do.')
         return
       }
 
@@ -881,7 +974,7 @@ export default function App() {
             requestPromise,
             new Promise((_, reject) => {
               timeoutId = setTimeout(() => {
-                reject(new Error('No fue posible conectar con la API. Verifica que el backend de Railway esté activo y respondiendo (health endpoint).'))
+                reject(new Error('No fue posible conectar con la API. Verifica que el backend configurado esté activo y respondiendo (health endpoint).'))
               }, AUTH_REQUEST_TIMEOUT_MS)
             }),
           ])
@@ -1020,6 +1113,7 @@ export default function App() {
     setScholarshipForm({
       scholarshipName: beca?.nombre || '',
       institutionName: beca?.entidad || '',
+      careerName: scholarshipForm.careerName || '',
       studentComment: '',
     })
     setScholarshipFormError('')
@@ -1050,9 +1144,11 @@ export default function App() {
       setScholarshipActionId('create-scholarship-request')
       setScholarshipFormError('')
       setScholarshipSuccess('')
+      const resolvedScholarshipName = (scholarshipForm.scholarshipName || '').trim() || getAutoScholarshipName(scholarshipForm)
       const payload = {
-        scholarshipName: scholarshipForm.scholarshipName.trim(),
+        scholarshipName: resolvedScholarshipName,
         institutionName: scholarshipForm.institutionName.trim(),
+        careerName: scholarshipForm.careerName.trim(),
         studentComment: (scholarshipForm.studentComment || '').trim(),
       }
       const created = await apiRequest('/ScholarshipApplications', { method: 'POST', token: authToken, body: payload })
@@ -1707,11 +1803,9 @@ export default function App() {
                     name="usuario"
                     value={loginForm.usuario}
                     onChange={handleLoginChange}
-                    placeholder={loginForm.rol === 'Analista MINERD'
-                      ? 'usuario@minerd.gob.do'
-                      : loginForm.rol === 'Analista MESCYT'
-                        ? 'usuario@mescyt.gob.do'
-                        : 'admin@edumetrics.gob.do'}
+                    placeholder={loginForm.rol === 'Analista MESCYT/MINERD'
+                      ? 'usuario@minerd.gob.do o usuario@mescyt.gob.do'
+                      : 'admin@edumetrics.gob.do'}
                     autoComplete="username"
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   />
@@ -1890,7 +1984,7 @@ export default function App() {
               <p className="mt-1 text-sm text-slate-500">
                 {activeRole === 'Administrador'
                   ? 'Panel administrativo para supervisar expedientes, accesos institucionales y reportes ejecutivos del sistema.'
-                  : activeRole === 'Analista MINERD'
+                  : activeRole === 'Analista MESCYT/MINERD'
                   ? 'Panel de gestión de expedientes para centros educativos del nivel pre-universitario (Escuelas y Politécnicos) bajo MINERD.'
                   : 'Panel de gestión de egresados y matriculados en instituciones de educación superior reguladas por MESCYT.'}
               </p>
@@ -1927,7 +2021,7 @@ export default function App() {
             )}
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
               <p className="mb-1 font-semibold text-slate-700">Endpoint activo:</p>
-              <code className="rounded bg-slate-200 px-2 py-0.5 text-xs break-all">{API_BASE}/AllExampleData</code>
+              <code className="rounded bg-slate-200 px-2 py-0.5 text-xs break-all">{API_BASE_CANDIDATES[0] || 'http://localhost:5123/api'}/AllExampleData</code>
               <p className="mt-1 text-xs text-slate-600">
                 Seguridad activa con token JWT Bearer y rol: <code className="bg-slate-200 px-1 rounded">{activeRole}</code>
               </p>
@@ -2319,7 +2413,7 @@ export default function App() {
                     value={userForm.correoInstitucional}
                     onChange={handleUserFormChange}
                     className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none disabled:bg-slate-100"
-                    placeholder={userForm.rol === 'Analista MINERD' ? 'usuario@minerd.gob.do' : userForm.rol === 'Analista MESCYT' ? 'usuario@mescyt.gob.do' : 'admin@edumetrics.gob.do'}
+                    placeholder={userForm.rol === 'Analista MESCYT/MINERD' ? 'usuario@minerd.gob.do o usuario@mescyt.gob.do' : 'admin@edumetrics.gob.do'}
                     disabled={userForm.rol === 'Estudiante'}
                   />
                 </label>
@@ -2732,11 +2826,57 @@ export default function App() {
         {/* ═══ ESTUDIANTIL: BECAS ═══ */}
         {activeTab === TAB_BECAS && !canBackoffice(activeRole) && (
           <section className="space-y-4">
-            <div className={`${card} p-5`}>
-              <h2 className="text-base font-semibold text-slate-800 mb-1">Oportunidades y Becas</h2>
-              <p className="text-sm text-slate-500">
-                Programas disponibles para el ciclo escolar 2025–2026. Verifica los requisitos, solicita la beca y genera trazabilidad nominal hacia {TRACEABILITY_EMAIL}.
-              </p>
+            <div className={`${card} p-5 space-y-4`}>
+              <div>
+                <h2 className="text-base font-semibold text-slate-800 mb-1">Oportunidades y Becas</h2>
+                <p className="text-sm text-slate-500">
+                  Análisis institucional consolidado para el perfil activo: estudiante universitario de pregrado. La priorización se orienta a becas nacionales e internacionales de educación superior, con una visión unificada de MESCYT/MINERD.
+                </p>
+              </div>
+
+              <div className="space-y-3 text-sm text-slate-600">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">Perfil activo del usuario</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>Estudiante universitario de pregrado.</li>
+                    <li>Prioridad de visualización: becas universitarias nacionales e internacionales.</li>
+                    <li>Se omiten, en la vista principal, las oportunidades dirigidas a primaria y secundaria.</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">Unificación institucional</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>Los programas de apoyo, excelencia y movilidad se presentan bajo la denominación institucional unificada: MESCYT/MINERD.</li>
+                    <li>La lógica de atención prioriza la articulación entre políticas educativas nacionales, gestión académica y sostenibilidad del ingreso a la educación superior.</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">Clasificación por niveles educativos</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li><span className="font-medium text-slate-700">Primaria:</span> apoyo escolar, continuidad y acceso a servicios complementarios.</li>
+                    <li><span className="font-medium text-slate-700">Secundaria:</span> permanencia, excelencia académica y apoyo a la transición a la educación superior.</li>
+                    <li><span className="font-medium text-slate-700">Universitaria:</span> pregrado, técnico superior y postgrado, con énfasis en matrícula, permanencia, movilidad e investigación.</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">Oportunidades priorizadas para este perfil</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li><span className="font-medium text-slate-700">Nacionales:</span> becas de apoyo a la matrícula, excelencia académica, permanencia y movilidad institucional en universidades reguladas por MESCYT/MINERD.</li>
+                    <li><span className="font-medium text-slate-700">Internacionales:</span> programas de movilidad estudiantil, becas de cooperación y apoyo académico para formación superior en contextos regionales e internacionales.</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">TRAE</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>El servicio de transporte escolar del Sistema Nacional de Transporte Escolar (TRAE) corresponde exclusivamente a estudiantes de primaria y secundaria.</li>
+                    <li>Para este perfil universitario, el transporte escolar oficial de la red TRAE no aplica y no debe considerarse como una alternativa de acceso.</li>
+                  </ul>
+                </div>
+              </div>
             </div>
             {scholarshipError && (
               <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{scholarshipError}</p>
@@ -2751,26 +2891,42 @@ export default function App() {
 
               <form onSubmit={handleScholarshipSubmit} className="grid gap-3 lg:grid-cols-2" noValidate>
                 <label className="grid gap-1">
-                  <span className="text-sm text-slate-600">Nombre de la beca</span>
-                  <input
-                    type="text"
-                    name="scholarshipName"
-                    value={scholarshipForm.scholarshipName}
-                    onChange={handleScholarshipFormChange}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
-                    placeholder="Beca MESCYT Excelencia"
-                  />
-                </label>
-                <label className="grid gap-1">
-                  <span className="text-sm text-slate-600">Institución</span>
-                  <input
-                    type="text"
+                  <span className="text-sm text-slate-600">Institución de Educación Superior</span>
+                  <select
                     name="institutionName"
                     value={scholarshipForm.institutionName}
                     onChange={handleScholarshipFormChange}
                     className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
-                    placeholder="MESCYT"
-                  />
+                  >
+                    <option value="">Seleccione una IES</option>
+                    <option value="UASD">UASD</option>
+                    <option value="PUCMM">PUCMM</option>
+                    <option value="ITLA">ITLA</option>
+                    <option value="UNAPEC">UNAPEC</option>
+                    <option value="UNPHU">UNPHU</option>
+                    <option value="UTESA">UTESA</option>
+                    <option value="ITSC">ITSC</option>
+                    <option value="MESCYT/MINERD">MESCYT/MINERD</option>
+                  </select>
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-sm text-slate-600">Carrera o programa</span>
+                  <select
+                    name="careerName"
+                    value={scholarshipForm.careerName}
+                    onChange={handleScholarshipFormChange}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                  >
+                    <option value="">Seleccione una carrera</option>
+                    <option value="Ingeniería en Sistemas">Ingeniería en Sistemas</option>
+                    <option value="Administración de Empresas">Administración de Empresas</option>
+                    <option value="Contabilidad y Finanzas">Contabilidad y Finanzas</option>
+                    <option value="Ingeniería Industrial">Ingeniería Industrial</option>
+                    <option value="Derecho">Derecho</option>
+                    <option value="Medicina">Medicina</option>
+                    <option value="Psicología">Psicología</option>
+                    <option value="Educación">Educación</option>
+                  </select>
                 </label>
                 <label className="grid gap-1 lg:col-span-2">
                   <span className="text-sm text-slate-600">Comentario del estudiante</span>
@@ -2800,33 +2956,129 @@ export default function App() {
                 <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{scholarshipFormError}</p>
               )}
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {DEMO_BECAS.map(beca => (
-                <article key={beca.nombre} className={`rounded-2xl border p-5 space-y-3 ${beca.color}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-semibold text-slate-800 leading-tight">{beca.nombre}</h3>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${beca.badge}`}>{beca.entidad}</span>
-                  </div>
-                  <div className="space-y-1 text-sm text-slate-600">
-                    <p><span className="font-medium text-slate-700">Monto:</span> {beca.monto}</p>
-                    <p><span className="font-medium text-slate-700">Requisito:</span> {beca.requisito}</p>
-                    <p><span className="font-medium text-slate-700">Cierre:</span> {fmtDate(beca.cierre)}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => prefillScholarshipForm(beca)}
-                      className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors"
-                    >
-                      Solicitar esta beca
-                    </button>
-                    <a href={beca.url} target="_blank" rel="noopener noreferrer"
-                      className="inline-block rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
-                      Más información →
-                    </a>
-                  </div>
-                </article>
-              ))}
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <h3 className="text-base font-semibold text-slate-800">Explorador institucional de becas</h3>
+                <p className="mt-1 text-sm text-slate-500">Seleccione una institución para ver sus carreras, los programas de becas aplicables y el detalle curricular asociado.</p>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                {[
+                  { nombre: 'UASD', descripcion: 'Universidad Autónoma de Santo Domingo', color: 'border-rose-300 bg-rose-50', badge: 'bg-rose-100 text-rose-800' },
+                  { nombre: 'PUCMM', descripcion: 'Pontificia Universidad Católica Madre y Maestra', color: 'border-indigo-300 bg-indigo-50', badge: 'bg-indigo-100 text-indigo-800' },
+                  { nombre: 'ITLA', descripcion: 'Instituto Tecnológico de Las Américas', color: 'border-slate-300 bg-slate-100', badge: 'bg-slate-100 text-slate-800' },
+                  { nombre: 'UNAPEC', descripcion: 'Universidad APEC', color: 'border-cyan-300 bg-cyan-50', badge: 'bg-cyan-100 text-cyan-800' },
+                  { nombre: 'UNPHU', descripcion: 'Universidad Nacional Pedro Henríquez Ureña', color: 'border-lime-300 bg-lime-50', badge: 'bg-lime-100 text-lime-800' },
+                  { nombre: 'UTESA', descripcion: 'Universidad Tecnológica de Santiago', color: 'border-orange-300 bg-orange-50', badge: 'bg-orange-100 text-orange-800' },
+                  { nombre: 'ITSC', descripcion: 'Instituto Tecnológico Superior Comunitario', color: 'border-emerald-300 bg-emerald-50', badge: 'bg-emerald-100 text-emerald-800' },
+                ].map(ies => {
+                  const isOpen = scholarshipForm.institutionName?.toLowerCase().includes(ies.nombre.toLowerCase())
+                  const institutionalScholarships = buildScholarshipCards(scholarshipForm.careerName, ies.nombre)
+                    .filter(beca => beca.entidad === 'MESCYT/MINERD' || beca.entidad.toLowerCase().includes(ies.nombre.toLowerCase()))
+                    .slice(0, 3)
+                  return (
+                    <div key={ies.nombre} className={`rounded-2xl border p-4 space-y-3 ${ies.color}`}>
+                      <button
+                        type="button"
+                        onClick={() => setScholarshipForm(prev => ({ ...prev, institutionName: ies.nombre }))}
+                        className="flex w-full items-start justify-between gap-2 text-left"
+                      >
+                        <div>
+                          <h4 className="font-semibold text-slate-800">{ies.nombre}</h4>
+                          <p className="mt-1 text-sm text-slate-600">{ies.descripcion}</p>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${ies.badge}`}>Ver detalle</span>
+                      </button>
+
+                      {isOpen && (
+                        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
+                          <div>
+                            <p className="font-semibold text-slate-800">Carreras y programas</p>
+                            <ul className="mt-2 list-disc space-y-1 pl-5">
+                              <li>Ingeniería en Sistemas</li>
+                              <li>Administración de Empresas</li>
+                              <li>Contabilidad y Finanzas</li>
+                              <li>Ingeniería Industrial</li>
+                            </ul>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-800">Becas MESCYT/MINERD aplicables</p>
+                            <ul className="mt-2 list-disc space-y-1 pl-5">
+                              <li>Excellence: 100% de matrícula o apoyo parcial según desempeño.</li>
+                              <li>Permanencia: estipendio mensual y apoyo a matrícula.</li>
+                              <li>Movilidad: apoyo complementario para intercambio académico.</li>
+                            </ul>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-800">Pensum y estructura curricular</p>
+                            <p className="mt-2">Disponible por programa con asignaturas, créditos y prerrequisitos según la oferta académica oficial de la IES.</p>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-800">Datos oficiales</p>
+                            <p className="mt-2">Requisitos de admisión, recintos, modalidades y vigencia del programa gestionados por la institución y validados por MESCYT/MINERD.</p>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-800">Programas disponibles</p>
+                            <div className="mt-2 space-y-2">
+                              {institutionalScholarships.map(beca => (
+                                <div key={`${ies.nombre}-${beca.nombre}`} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                                  <p className="text-xs font-medium text-slate-700">{beca.nombre}</p>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => prefillScholarshipForm(beca)}
+                                      className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors"
+                                    >
+                                      Solicitar esta beca
+                                    </button>
+                                    <a
+                                      href={beca.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-block rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                                    >
+                                      Más información
+                                    </a>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                {buildScholarshipCards(scholarshipForm.careerName, scholarshipForm.institutionName).map(beca => (
+                  <article key={beca.nombre} className={`rounded-2xl border p-5 space-y-3 ${beca.color}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-semibold text-slate-800 leading-tight">{beca.nombre}</h3>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${beca.badge}`}>{beca.entidad}</span>
+                    </div>
+                    <div className="space-y-1 text-sm text-slate-600">
+                      <p><span className="font-medium text-slate-700">Monto:</span> {beca.monto}</p>
+                      <p><span className="font-medium text-slate-700">Requisito:</span> {beca.requisito}</p>
+                      <p><span className="font-medium text-slate-700">Cierre:</span> {fmtDate(beca.cierre)}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => prefillScholarshipForm(beca)}
+                        className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors"
+                      >
+                        Solicitar esta beca
+                      </button>
+                      <a href={beca.url} target="_blank" rel="noopener noreferrer"
+                        className="inline-block rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+                        Más información
+                      </a>
+                    </div>
+                  </article>
+                ))}
+              </div>
             </div>
             <div className={`${card} p-5 space-y-4`}>
               <div className="flex items-center justify-between gap-2">
