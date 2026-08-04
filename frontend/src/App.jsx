@@ -8,20 +8,6 @@ import * as XLSX from 'xlsx'
 const PRODUCTION_API_BASE = 'https://part-1-segundo-parcial-desarrollo-de-aplicativ-production.up.railway.app/api'
 const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim()
 const normalizedApiUrl = rawApiUrl.replace(/\/$/, '')
-const fallbackOrigin = typeof window !== 'undefined' ? window.location.origin : ''
-const sameOriginApi = fallbackOrigin ? `${fallbackOrigin}/api` : ''
-const isLocalHost = /localhost|127\.0\.0\.1/i.test(fallbackOrigin)
-
-const LOCAL_BACKEND_API_CANDIDATES = isLocalHost
-  ? [
-      'http://localhost:5123/api',
-      'https://localhost:7089/api',
-      'http://localhost:8080/api',
-      'http://127.0.0.1:5123/api',
-      'https://127.0.0.1:7089/api',
-      'http://127.0.0.1:8080/api',
-    ]
-  : []
 
 const configuredApiBase = normalizedApiUrl
   ? normalizedApiUrl.endsWith('/api') ? normalizedApiUrl : `${normalizedApiUrl}/api`
@@ -29,8 +15,6 @@ const configuredApiBase = normalizedApiUrl
 
 const API_BASE_CANDIDATES = Array.from(new Set([
   configuredApiBase,
-  ...LOCAL_BACKEND_API_CANDIDATES,
-  sameOriginApi,
   PRODUCTION_API_BASE,
 ].filter(Boolean)))
 
