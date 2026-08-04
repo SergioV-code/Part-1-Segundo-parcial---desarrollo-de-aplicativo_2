@@ -17,8 +17,8 @@ using MongoDB.Driver;
 var builder = WebApplication.CreateBuilder(args);
 
 var sqlConnection = ResolveSqlConnectionString(builder.Configuration);
-var shouldAllowInMemoryFallback = (builder.Configuration.GetValue<bool?>("ALLOW_INMEMORY_FALLBACK") ?? true)
-    && builder.Environment.IsDevelopment();
+// InMemory fallback allowed by default in any environment; disable with ALLOW_INMEMORY_FALLBACK=false
+var shouldAllowInMemoryFallback = builder.Configuration.GetValue<bool?>("ALLOW_INMEMORY_FALLBACK") ?? true;
 var shouldUseInMemoryDatabase = false;
 
 if (string.IsNullOrWhiteSpace(sqlConnection))
