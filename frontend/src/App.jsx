@@ -166,8 +166,16 @@ const ROL_COLORS = {
   'Administrador':   { bg: '#4c1d95', badge: 'bg-violet-100 text-violet-900' },
 }
 
-const isGov = rol => rol === 'Analista MESCYT/MINERD'
-const isAdmin = rol => rol === 'Administrador'
+const normalizeRoleForUi = rol => {
+  if (rol === 'Analista MINERD' || rol === 'Analista MESCYT' || rol === 'Analista MESCYT/MINERD') {
+    return 'Analista MESCYT/MINERD'
+  }
+
+  return rol || ROLES[0]
+}
+
+const isGov = rol => normalizeRoleForUi(rol) === 'Analista MESCYT/MINERD'
+const isAdmin = rol => normalizeRoleForUi(rol) === 'Administrador'
 const canBackoffice = rol => isGov(rol) || isAdmin(rol)
 
 // Datos de demo para la vista estudiantil
@@ -387,7 +395,7 @@ function exportDateLabel() {
 
 function hasValidDomainByRole(rol, usuario) {
   const value = sanitizeInstitutionalUser(usuario)
-  if (rol === 'Analista MESCYT/MINERD') return value.endsWith('@minerd.gob.do') || value.endsWith('@mescyt.gob.do')
+  if (isGov(rol)) return value.endsWith('@minerd.gob.do') || value.endsWith('@mescyt.gob.do')
   return true
 }
 
@@ -1004,7 +1012,7 @@ export default function App() {
         throw new Error('No se recibió token de autenticación.')
       }
 
-      const rol = response.rol || loginForm.rol
+      const rol = normalizeRoleForUi(response.rol || loginForm.rol)
       const auditUser = resolveAuditUserFromToken(
         response.token,
         rol,
@@ -1045,7 +1053,7 @@ export default function App() {
         if (passwordValid && domainValid) {
           setAuthToken('contingency-token')
           setIsAuthenticated(true)
-          setActiveRole(loginForm.rol)
+          setActiveRole(normalizeRoleForUi(loginForm.rol))
           setSessionAuditUser(usuario)
           setActiveTab(TAB_INICIO)
           setContingencyMode(true)
