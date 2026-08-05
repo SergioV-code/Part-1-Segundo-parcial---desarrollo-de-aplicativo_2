@@ -2009,9 +2009,9 @@ export default function App() {
           </div>
 
           <div className="relative z-10 mt-8 grid gap-3 text-sm text-blue-100 sm:max-w-md">
-            <div className="rounded-xl border border-white/20 bg-white/10 p-3 backdrop-blur-sm">Gobernanza de expedientes y validaciones académicas.</div>
-            <div className="rounded-xl border border-white/20 bg-white/10 p-3 backdrop-blur-sm">Control de acceso por roles con trazabilidad nominal.</div>
-            <div className="rounded-xl border border-white/20 bg-white/10 p-3 backdrop-blur-sm">Operación integrada para analistas y comunidad estudiantil.</div>
+            <div className="rounded-xl border border-white/20 bg-white/10 p-3 backdrop-blur-sm">Postulación simplificada a becas nacionales e internacionales del MESCYT y MINERD.</div>
+            <div className="rounded-xl border border-white/20 bg-white/10 p-3 backdrop-blur-sm">Exploración directa por universidad, carreras y pensums oficiales.</div>
+            <div className="rounded-xl border border-white/20 bg-white/10 p-3 backdrop-blur-sm">Trazabilidad en tiempo real del estado de tus solicitudes.</div>
           </div>
         </section>
 
