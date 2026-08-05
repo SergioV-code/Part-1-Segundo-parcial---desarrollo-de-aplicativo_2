@@ -204,6 +204,7 @@ function buildScholarshipCards(carrera = '', ies = '') {
   const basePrograms = [
     {
       nombre: `Beca MESCYT de Excelencia - ${carreraTexto || 'Carrera'}`,
+      modalidad: 'Nacional',
       entidad: 'MESCYT/MINERD',
       monto: 'RD$ 25,000 / año o hasta 100% de matrícula según criterio institucional',
       requisito: 'Promedio mínimo 85 o índice equivalente y perfil académico alineado con la carrera',
@@ -214,6 +215,7 @@ function buildScholarshipCards(carrera = '', ies = '') {
     },
     {
       nombre: `Beca de Permanencia Académica - ${carreraTexto || 'Carrera'}`,
+      modalidad: 'Nacional',
       entidad: 'MESCYT/MINERD',
       monto: 'RD$ 15,000 / semestre o apoyo parcial de matrícula',
       requisito: 'Promedio mínimo 80, continuidad académica y cumplimiento de carga mínima',
@@ -224,6 +226,7 @@ function buildScholarshipCards(carrera = '', ies = '') {
     },
     {
       nombre: `Beca Institucional de Movilidad - ${carreraTexto || 'Carrera'}`,
+      modalidad: 'Nacional',
       entidad: iesTexto || 'IES seleccionada',
       monto: 'Cobertura parcial o total de matrícula según convenio institucional',
       requisito: 'Aceptación en la IES, buen rendimiento académico y cumplimiento de requisitos del convenio',
@@ -234,6 +237,7 @@ function buildScholarshipCards(carrera = '', ies = '') {
     },
     {
       nombre: `Beca de Investigación y Talento - ${carreraTexto || 'Carrera'}`,
+      modalidad: 'Nacional',
       entidad: 'MESCYT/MINERD',
       monto: 'RD$ 30,000 / año o apoyo especializado para proyectos',
       requisito: 'Promedio mínimo 90, evidencia de desempeño y alineación con programas de investigación',
@@ -242,12 +246,43 @@ function buildScholarshipCards(carrera = '', ies = '') {
       color: 'border-amber-300 bg-amber-50',
       badge: 'bg-amber-100 text-amber-800',
     },
+    {
+      nombre: `Beca Internacional de Excelencia - ${carreraTexto || 'Carrera'}`,
+      modalidad: 'Internacional',
+      entidad: 'MESCYT/MINERD',
+      monto: 'Cobertura integral según convocatoria internacional',
+      requisito: 'Excelencia académica, expediente disciplinario limpio y cumplimiento de requisitos de admisión internacional',
+      cierre: '2026-11-15',
+      url: 'https://mescyt.gob.do',
+      color: 'border-fuchsia-300 bg-fuchsia-50',
+      badge: 'bg-fuchsia-100 text-fuchsia-800',
+      destinoPais: 'España',
+      universidadExtranjera: 'Universidad Complutense de Madrid',
+      tipoCobertura: 'Matrícula, estipendio de manutención, pasaje aéreo y seguro médico',
+      requisitosIdiomaOAdmision: 'Español C1 o carta de admisión definitiva',
+    },
+    {
+      nombre: `Beca Internacional de Investigación - ${carreraTexto || 'Carrera'}`,
+      modalidad: 'Internacional',
+      entidad: 'MESCYT/MINERD',
+      monto: 'Cobertura parcial con apoyo de investigación y movilidad',
+      requisito: 'Promedio mínimo 88, propuesta de investigación y aval académico institucional',
+      cierre: '2026-12-05',
+      url: 'https://mescyt.gob.do',
+      color: 'border-sky-300 bg-sky-50',
+      badge: 'bg-sky-100 text-sky-800',
+      destinoPais: 'Canadá',
+      universidadExtranjera: 'University of Toronto',
+      tipoCobertura: 'Matrícula parcial, estipendio de manutención, pasaje aéreo y seguro médico',
+      requisitosIdiomaOAdmision: 'IELTS 6.5+ o admisión condicional aceptada por la universidad',
+    },
   ]
 
   const institutionalMatches = []
   if (iesTexto.includes('itla')) {
     institutionalMatches.push({
       nombre: `Beca ITLA de Carrera - ${carreraTexto || 'Carrera'}`,
+      modalidad: 'Nacional',
       entidad: 'ITLA',
       monto: 'Cobertura parcial de matrícula',
       requisito: 'Promedio mínimo 80 y matrícula activa en programas técnicos o tecnológicos',
@@ -261,6 +296,7 @@ function buildScholarshipCards(carrera = '', ies = '') {
   if (iesTexto.includes('uasd')) {
     institutionalMatches.push({
       nombre: `Beca UASD de Excelencia - ${carreraTexto || 'Carrera'}`,
+      modalidad: 'Nacional',
       entidad: 'UASD',
       monto: 'Apoyo parcial de matrícula',
       requisito: 'Promedio mínimo 85 y permanencia institucional',
@@ -274,6 +310,7 @@ function buildScholarshipCards(carrera = '', ies = '') {
   if (iesTexto.includes('pucmm')) {
     institutionalMatches.push({
       nombre: `Beca PUCMM de Excelencia - ${carreraTexto || 'Carrera'}`,
+      modalidad: 'Nacional',
       entidad: 'PUCMM',
       monto: 'Cobertura parcial o total según beca institucional',
       requisito: 'Promedio mínimo 88 y perfil de liderazgo académico',
@@ -287,6 +324,7 @@ function buildScholarshipCards(carrera = '', ies = '') {
   if (iesTexto.includes('unapec')) {
     institutionalMatches.push({
       nombre: `Beca UNAPEC de Carrera - ${carreraTexto || 'Carrera'}`,
+      modalidad: 'Nacional',
       entidad: 'UNAPEC',
       monto: 'Apoyo de matrícula y costos administrativos',
       requisito: 'Promedio mínimo 82 y cumplimiento de requisitos de admisión',
@@ -300,6 +338,7 @@ function buildScholarshipCards(carrera = '', ies = '') {
   if (iesTexto.includes('unphu')) {
     institutionalMatches.push({
       nombre: `Beca UNPHU de Permanencia - ${carreraTexto || 'Carrera'}`,
+      modalidad: 'Nacional',
       entidad: 'UNPHU',
       monto: 'Cobertura parcial de matrícula',
       requisito: 'Promedio mínimo 84 y continuidad en el programa',
@@ -313,6 +352,7 @@ function buildScholarshipCards(carrera = '', ies = '') {
   if (iesTexto.includes('utesa')) {
     institutionalMatches.push({
       nombre: `Beca UTESA de Talento - ${carreraTexto || 'Carrera'}`,
+      modalidad: 'Nacional',
       entidad: 'UTESA',
       monto: 'Apoyo parcial de matrícula',
       requisito: 'Promedio mínimo 86 y perfil de liderazgo académico',
@@ -543,6 +583,7 @@ function validateAccessUserForm(form, isEditing) {
 }
 
 function validateScholarshipRequestForm(form) {
+  const scholarshipType = (form.scholarshipType || 'Nacional').trim()
   const institutionName = (form.institutionName || '').trim()
   const careerName = (form.careerName || '').trim()
 
@@ -554,13 +595,57 @@ function validateScholarshipRequestForm(form) {
     return 'La carrera a la que postula es obligatoria.'
   }
 
+  if (scholarshipType === 'Internacional') {
+    const destinationCountry = (form.destinationCountry || '').trim()
+    const foreignUniversity = (form.foreignUniversity || '').trim()
+    const internationalCoverageType = (form.internationalCoverageType || '').trim()
+    const languageOrAdmissionRequirement = (form.languageOrAdmissionRequirement || '').trim()
+
+    if (destinationCountry.length < 2) {
+      return 'Para beca internacional debe indicar el país de destino.'
+    }
+
+    if (foreignUniversity.length < 3) {
+      return 'Para beca internacional debe indicar la universidad extranjera.'
+    }
+
+    if (internationalCoverageType.length < 5) {
+      return 'Para beca internacional debe indicar el tipo de cobertura.'
+    }
+
+    if (languageOrAdmissionRequirement.length < 5) {
+      return 'Para beca internacional debe indicar los requisitos de idioma o admisión.'
+    }
+  }
+
   return ''
 }
 
 function getAutoScholarshipName(form) {
+  const scholarshipType = (form?.scholarshipType || 'Nacional').trim()
   const institutionName = (form?.institutionName || '').trim()
   const careerName = (form?.careerName || '').trim()
-  return `Beca ${institutionName || 'MESCYT/MINERD'} - ${careerName || 'Programa universitario'}`
+  return `Beca ${scholarshipType} ${institutionName || 'MESCYT/MINERD'} - ${careerName || 'Programa universitario'}`
+}
+
+function buildScholarshipCommentPayload(form) {
+  const baseComment = (form?.studentComment || '').trim()
+  const scholarshipType = (form?.scholarshipType || 'Nacional').trim()
+
+  if (scholarshipType !== 'Internacional') {
+    return baseComment
+  }
+
+  const metadata = [
+    '[DETALLE_BECA_INTERNACIONAL]',
+    `Pais de destino: ${(form?.destinationCountry || '').trim()}`,
+    `Universidad extranjera: ${(form?.foreignUniversity || '').trim()}`,
+    `Cobertura: ${(form?.internationalCoverageType || '').trim()}`,
+    `Requisitos idioma/admision: ${(form?.languageOrAdmissionRequirement || '').trim()}`,
+    '[/DETALLE_BECA_INTERNACIONAL]',
+  ].join('\n')
+
+  return [baseComment, metadata].filter(Boolean).join('\n\n')
 }
 
 function getScholarshipStatusClasses(status) {
@@ -749,8 +834,13 @@ export default function App() {
   // Módulo de becas
   const emptyScholarshipForm = {
     scholarshipName: '',
+    scholarshipType: 'Nacional',
     institutionName: '',
     careerName: '',
+    destinationCountry: '',
+    foreignUniversity: '',
+    internationalCoverageType: '',
+    languageOrAdmissionRequirement: '',
     studentComment: '',
   }
   const [scholarshipForm, setScholarshipForm] = useState(emptyScholarshipForm)
@@ -1119,15 +1209,34 @@ export default function App() {
 
   const handleScholarshipFormChange = e => {
     const { name, value } = e.target
-    setScholarshipForm(prev => ({ ...prev, [name]: value }))
+    setScholarshipForm(prev => {
+      if (name === 'scholarshipType' && value !== 'Internacional') {
+        return {
+          ...prev,
+          [name]: value,
+          destinationCountry: '',
+          foreignUniversity: '',
+          internationalCoverageType: '',
+          languageOrAdmissionRequirement: '',
+        }
+      }
+
+      return { ...prev, [name]: value }
+    })
     setScholarshipFormError('')
   }
 
   const prefillScholarshipForm = beca => {
+    const isInternational = (beca?.modalidad || '').toLowerCase() === 'internacional'
     setScholarshipForm({
       scholarshipName: beca?.nombre || '',
+      scholarshipType: isInternational ? 'Internacional' : 'Nacional',
       institutionName: beca?.entidad || '',
       careerName: scholarshipForm.careerName || '',
+      destinationCountry: isInternational ? (beca?.destinoPais || '') : '',
+      foreignUniversity: isInternational ? (beca?.universidadExtranjera || '') : '',
+      internationalCoverageType: isInternational ? (beca?.tipoCobertura || '') : '',
+      languageOrAdmissionRequirement: isInternational ? (beca?.requisitosIdiomaOAdmision || '') : '',
       studentComment: '',
     })
     setScholarshipFormError('')
@@ -1160,10 +1269,12 @@ export default function App() {
       setScholarshipSuccess('')
       const resolvedScholarshipName = (scholarshipForm.scholarshipName || '').trim() || getAutoScholarshipName(scholarshipForm)
       const payload = {
-        scholarshipName: resolvedScholarshipName,
+        scholarshipName: scholarshipForm.scholarshipType === 'Internacional'
+          ? `[Internacional] ${resolvedScholarshipName}`
+          : resolvedScholarshipName,
         institutionName: scholarshipForm.institutionName.trim(),
         careerName: scholarshipForm.careerName.trim(),
-        studentComment: (scholarshipForm.studentComment || '').trim(),
+        studentComment: buildScholarshipCommentPayload(scholarshipForm),
       }
       const created = await apiRequest('/ScholarshipApplications', { method: 'POST', token: authToken, body: payload })
       setScholarshipForm(emptyScholarshipForm)
@@ -2904,6 +3015,18 @@ export default function App() {
               </div>
 
               <form onSubmit={handleScholarshipSubmit} className="grid gap-3 lg:grid-cols-2" noValidate>
+                <label className="grid gap-1 lg:col-span-2">
+                  <span className="text-sm text-slate-600">Modalidad de beca</span>
+                  <select
+                    name="scholarshipType"
+                    value={scholarshipForm.scholarshipType}
+                    onChange={handleScholarshipFormChange}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                  >
+                    <option value="Nacional">Nacional</option>
+                    <option value="Internacional">Internacional</option>
+                  </select>
+                </label>
                 <label className="grid gap-1">
                   <span className="text-sm text-slate-600">Institución de Educación Superior</span>
                   <select
@@ -2942,6 +3065,54 @@ export default function App() {
                     <option value="Educación">Educación</option>
                   </select>
                 </label>
+                {scholarshipForm.scholarshipType === 'Internacional' && (
+                  <>
+                    <label className="grid gap-1">
+                      <span className="text-sm text-slate-600">País de destino</span>
+                      <input
+                        type="text"
+                        name="destinationCountry"
+                        value={scholarshipForm.destinationCountry}
+                        onChange={handleScholarshipFormChange}
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                        placeholder="Ej: España"
+                      />
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="text-sm text-slate-600">Universidad extranjera</span>
+                      <input
+                        type="text"
+                        name="foreignUniversity"
+                        value={scholarshipForm.foreignUniversity}
+                        onChange={handleScholarshipFormChange}
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                        placeholder="Ej: University of Toronto"
+                      />
+                    </label>
+                    <label className="grid gap-1 lg:col-span-2">
+                      <span className="text-sm text-slate-600">Tipo de cobertura</span>
+                      <input
+                        type="text"
+                        name="internationalCoverageType"
+                        value={scholarshipForm.internationalCoverageType}
+                        onChange={handleScholarshipFormChange}
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                        placeholder="Matrícula, estipendio de manutención, pasaje aéreo y seguro médico"
+                      />
+                    </label>
+                    <label className="grid gap-1 lg:col-span-2">
+                      <span className="text-sm text-slate-600">Requisitos de idioma o admisión</span>
+                      <input
+                        type="text"
+                        name="languageOrAdmissionRequirement"
+                        value={scholarshipForm.languageOrAdmissionRequirement}
+                        onChange={handleScholarshipFormChange}
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                        placeholder="Ej: IELTS 6.5+ o carta de admisión"
+                      />
+                    </label>
+                  </>
+                )}
                 <label className="grid gap-1 lg:col-span-2">
                   <span className="text-sm text-slate-600">Comentario del estudiante</span>
                   <textarea
@@ -3070,11 +3241,20 @@ export default function App() {
                   <article key={beca.nombre} className={`rounded-2xl border p-5 space-y-3 ${beca.color}`}>
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-semibold text-slate-800 leading-tight">{beca.nombre}</h3>
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${beca.badge}`}>{beca.entidad}</span>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${beca.badge}`}>{beca.modalidad || 'Nacional'}</span>
                     </div>
                     <div className="space-y-1 text-sm text-slate-600">
+                      <p><span className="font-medium text-slate-700">Institución:</span> {beca.entidad}</p>
                       <p><span className="font-medium text-slate-700">Monto:</span> {beca.monto}</p>
                       <p><span className="font-medium text-slate-700">Requisito:</span> {beca.requisito}</p>
+                      {beca.modalidad === 'Internacional' && (
+                        <>
+                          <p><span className="font-medium text-slate-700">País de destino:</span> {beca.destinoPais}</p>
+                          <p><span className="font-medium text-slate-700">Universidad extranjera:</span> {beca.universidadExtranjera}</p>
+                          <p><span className="font-medium text-slate-700">Cobertura:</span> {beca.tipoCobertura}</p>
+                          <p><span className="font-medium text-slate-700">Idioma/Admisión:</span> {beca.requisitosIdiomaOAdmision}</p>
+                        </>
+                      )}
                       <p><span className="font-medium text-slate-700">Cierre:</span> {fmtDate(beca.cierre)}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
