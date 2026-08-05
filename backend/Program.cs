@@ -219,6 +219,7 @@ if (enableDbBootstrap)
         else
         {
             await context.Database.EnsureCreatedAsync(bootstrapCts.Token);
+            await EnsureScholarshipCareerColumnAsync(context, startupLogger, bootstrapCts.Token);
 
             var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
             await AppDbSeeder.SeedAsync(context, passwordHasher, bootstrapCts.Token);
@@ -459,6 +460,34 @@ static bool IsDatabaseUnavailable(Exception? exception)
     }
 
     return false;
+}
+
+static async Task EnsureScholarshipCareerColumnAsync(SchoolContext context, ILogger logger, CancellationToken cancellationToken)
+{
+    if (!context.Database.IsRelational())
+    {
+        return;
+    }
+
+    const string sql = """
+        IF OBJECT_ID(N'[dbo].[ScholarshipApplications]', N'U') IS NOT NULL
+        BEGIN
+            IF COL_LENGTH('dbo.ScholarshipApplications', 'CareerName') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[ScholarshipApplications]
+                ADD [CareerName] nvarchar(180) NULL;
+            END
+        END
+        """;
+
+    try
+    {
+        await context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "No se pudo asegurar la columna CareerName en ScholarshipApplications durante bootstrap.");
+    }
 }
 
 static async Task<bool> CanOpenSqlConnectionAsync(string connectionString)

@@ -54,6 +54,9 @@ namespace EDUMETRICS_DR.Data
                     .HasMaxLength(80)
                     .IsRequired();
 
+                entity.Property(e => e.CareerName)
+                    .HasMaxLength(180);
+
                 entity.Property(e => e.NotificationEmail)
                     .HasMaxLength(200)
                     .IsRequired();

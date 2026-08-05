@@ -20,6 +20,8 @@ const API_BASE_CANDIDATES = Array.from(new Set([
 
 const API_REQUEST_TIMEOUT_MS = 22000
 const AUTH_REQUEST_TIMEOUT_MS = 30000
+const SESSION_STORAGE_KEY = 'edumetrics-session-v1'
+const SESSION_CLOCK_SKEW_MS = 30000
 
 // ─── HELPER CENTRALIZADO DE PETICIONES HTTP ────────────────────────────────────
 /**
@@ -513,6 +515,34 @@ function resolveAuditUserFromToken(token, role, fallbackUserInput) {
   return (fallbackUserInput || '').trim()
 }
 
+function getJwtExpirationMs(token) {
+  const payload = decodeJwtPayload(token)
+  const exp = Number(payload?.exp)
+  if (!Number.isFinite(exp) || exp <= 0) return null
+  return exp * 1000
+}
+
+function isJwtExpired(token) {
+  const expirationMs = getJwtExpirationMs(token)
+  if (!expirationMs) return true
+  return Date.now() >= (expirationMs - SESSION_CLOCK_SKEW_MS)
+}
+
+function getDefaultTabByRole(role) {
+  return canBackoffice(role) ? TAB_INICIO : TAB_PERFIL
+}
+
+function getAllowedTabsByRole(role) {
+  if (isAdmin(role)) return ADMIN_TABS
+  if (canBackoffice(role)) return GOV_TABS
+  return STU_TABS
+}
+
+function resolveTabForRole(candidateTab, role) {
+  const allowedTabs = getAllowedTabsByRole(role)
+  return allowedTabs.includes(candidateTab) ? candidateTab : getDefaultTabByRole(role)
+}
+
 function validateExpedienteForm(form, students, editingId) {
   const nombre = (form.nombre || '').trim()
   const centro = (form.centroEducativo || '').trim()
@@ -983,6 +1013,81 @@ export default function App() {
   }, [seedAnalysisDrafts])
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    try {
+      const serializedSession = window.sessionStorage.getItem(SESSION_STORAGE_KEY)
+      if (!serializedSession) return
+
+      const parsedSession = JSON.parse(serializedSession)
+      const persistedToken = (parsedSession?.token || '').trim()
+      const persistedRole = normalizeRoleForUi(parsedSession?.role || '')
+      const persistedTab = (parsedSession?.activeTab || '').trim()
+      const persistedAuditUser = (parsedSession?.sessionAuditUser || '').trim()
+
+      if (!persistedToken || persistedToken.startsWith('contingency-token') || isJwtExpired(persistedToken)) {
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY)
+        return
+      }
+
+      if (!isKnownRole(persistedRole)) {
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY)
+        return
+      }
+
+      setAuthToken(persistedToken)
+      setIsAuthenticated(true)
+      setActiveRole(persistedRole)
+      setActiveTab(resolveTabForRole(persistedTab, persistedRole))
+      setSessionAuditUser(resolveAuditUserFromToken(persistedToken, persistedRole, persistedAuditUser))
+      setContingencyMode(false)
+    } catch {
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    if (!isAuthenticated || !authToken || contingencyMode || authToken.startsWith('contingency-token')) {
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY)
+      return
+    }
+
+    if (isJwtExpired(authToken)) {
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY)
+      setIsAuthenticated(false)
+      setAuthToken('')
+      setActiveRole(ROLES[0])
+      setActiveTab(TAB_INICIO)
+      setSessionAuditUser('')
+      setLoginError('La sesión expiró. Inicia sesión nuevamente.')
+      return
+    }
+
+    const normalizedRole = normalizeRoleForUi(activeRole)
+    if (!isKnownRole(normalizedRole)) {
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY)
+      return
+    }
+
+    const safeTab = resolveTabForRole(activeTab, normalizedRole)
+    const payload = {
+      token: authToken,
+      role: normalizedRole,
+      activeTab: safeTab,
+      sessionAuditUser,
+      savedAtUtc: new Date().toISOString(),
+    }
+
+    try {
+      window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload))
+    } catch {
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY)
+    }
+  }, [isAuthenticated, authToken, activeRole, activeTab, sessionAuditUser, contingencyMode])
+
+  useEffect(() => {
     if (!isAuthenticated || !authToken) return
 
     if (authToken.startsWith('contingency-token') && canBackoffice(activeRole)) {
@@ -1177,6 +1282,10 @@ export default function App() {
   }
 
   const handleLogout = () => {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY)
+    }
+
     setIsAuthenticated(false)
     setLoginForm({ usuario: '', contrasena: '', rol: ROLES[0] })
     setLoginError('')
@@ -2693,6 +2802,7 @@ export default function App() {
                       <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
                         <p><span className="font-medium text-slate-700">Estudiante:</span> {application.studentName}</p>
                         <p><span className="font-medium text-slate-700">Cédula:</span> {application.studentCedula}</p>
+                        <p><span className="font-medium text-slate-700">Carrera:</span> {application.careerName || 'No especificada'}</p>
                         <p><span className="font-medium text-slate-700">Solicitada:</span> {fmt(application.submittedAtUtc)}</p>
                         <p><span className="font-medium text-slate-700">Correo trazable:</span> {application.notificationEmail}</p>
                       </div>
@@ -2796,6 +2906,7 @@ export default function App() {
                         </div>
 
                         <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
+                          <p><span className="font-medium text-slate-700">Carrera:</span> {application.careerName || 'No especificada'}</p>
                           <p><span className="font-medium text-slate-700">Correo trazable:</span> {application.notificationEmail}</p>
                           <p><span className="font-medium text-slate-700">Aprobada el:</span> {application.reviewedAtUtc ? fmt(application.reviewedAtUtc) : '—'}</p>
                         </div>
@@ -3300,6 +3411,7 @@ export default function App() {
 
                       <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
                         <p><span className="font-medium text-slate-700">Fecha de envío:</span> {fmt(application.submittedAtUtc)}</p>
+                        <p><span className="font-medium text-slate-700">Carrera:</span> {application.careerName || 'No especificada'}</p>
                         <p><span className="font-medium text-slate-700">Correo notificado:</span> {application.notificationEmail}</p>
                       </div>
 

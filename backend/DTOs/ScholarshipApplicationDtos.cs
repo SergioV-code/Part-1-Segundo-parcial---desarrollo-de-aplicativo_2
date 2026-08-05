@@ -12,6 +12,9 @@ public class CreateScholarshipApplicationRequest
     [MaxLength(180)]
     public string InstitutionName { get; set; } = string.Empty;
 
+    [MaxLength(180)]
+    public string? CareerName { get; set; }
+
     [MaxLength(2000)]
     public string? StudentComment { get; set; }
 }
@@ -53,6 +56,7 @@ public class ScholarshipApplicationDto
     public string StudentCedula { get; set; } = string.Empty;
     public string ScholarshipName { get; set; } = string.Empty;
     public string InstitutionName { get; set; } = string.Empty;
+    public string CareerName { get; set; } = string.Empty;
     public string NotificationEmail { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string StudentComment { get; set; } = string.Empty;

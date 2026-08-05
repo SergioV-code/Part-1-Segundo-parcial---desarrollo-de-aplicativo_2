@@ -34,6 +34,9 @@ public class ScholarshipApplication
     [MaxLength(180)]
     public string InstitutionName { get; set; } = string.Empty;
 
+    [MaxLength(180)]
+    public string? CareerName { get; set; }
+
     [MaxLength(200)]
     public string NotificationEmail { get; set; } = ScholarshipTraceability.InstitutionalEmail;
 
