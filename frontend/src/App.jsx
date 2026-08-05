@@ -984,10 +984,14 @@ export default function App() {
           },
         }))
       } else {
+        const analystRole = loginForm.rol === 'Analista MESCYT/MINERD'
+          ? (usuario.endsWith('@minerd.gob.do') ? 'Analista MINERD' : 'Analista MESCYT')
+          : loginForm.rol
+
         response = await authRequestWithTimeout(apiRequest('/Auth/login/analista', {
           method: 'POST',
           body: {
-            rol: loginForm.rol,
+            rol: analystRole,
             correoInstitucional: usuario,
             password: contrasena,
           },
