@@ -98,11 +98,13 @@ async function apiRequest(path, { method = 'GET', token = '', body = null, role 
         }
 
         if (res.status === 400) {
-          throw new Error(
+          const apiError = new Error(
             path.startsWith('/Auth/login')
               ? 'Datos inválidos. Verifica correo institucional y contraseña (mínimo 8 caracteres).'
               : detail,
           )
+          apiError.isApiResponse = true
+          throw apiError
         }
 
         throw new Error(`HTTP ${res.status} - ${detail}`)
@@ -117,7 +119,7 @@ async function apiRequest(path, { method = 'GET', token = '', body = null, role 
         continue
       }
 
-      if (/HTTP [45]\d\d/i.test(message)) {
+      if (error?.isApiResponse || /HTTP [45]\d\d/i.test(message)) {
         throw error
       }
       lastError = error
