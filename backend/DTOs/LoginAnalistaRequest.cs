@@ -5,7 +5,7 @@ namespace EDUMETRICS_DR.DTOs;
 public class LoginAnalistaRequest
 {
     [Required]
-    [RegularExpression("^(Analista MINERD|Analista MESCYT)$", ErrorMessage = "El rol debe ser 'Analista MINERD' o 'Analista MESCYT'.")]
+    [RegularExpression("^(Analista MINERD|Analista MESCYT|Analista MESCYT/MINERD)$", ErrorMessage = "El rol debe ser 'Analista MINERD', 'Analista MESCYT' o 'Analista MESCYT/MINERD'.")]
     public string Rol { get; set; } = string.Empty;
 
     [Required]

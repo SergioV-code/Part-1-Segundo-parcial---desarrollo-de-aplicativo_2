@@ -47,7 +47,7 @@ public class AuthController : ControllerBase
             return ValidationProblem(ModelState);
         }
 
-        var rolSeleccionado = request.Rol.Trim();
+        var rolSeleccionado = NormalizeAnalystRole(request.Rol, request.CorreoInstitucional);
         var correo = _userService.NormalizeInstitutionalEmail(request.CorreoInstitucional);
         if (rolSeleccionado == "Analista MINERD" && !correo.EndsWith("@minerd.gob.do", StringComparison.OrdinalIgnoreCase))
         {
@@ -69,6 +69,25 @@ public class AuthController : ControllerBase
         }
 
         return Ok(authResponse);
+    }
+
+    private static string NormalizeAnalystRole(string role, string email)
+    {
+        var normalizedRole = (role ?? string.Empty).Trim();
+        if (normalizedRole == "Analista MINERD" || normalizedRole == "Analista MESCYT")
+        {
+            return normalizedRole;
+        }
+
+        var normalizedEmail = (email ?? string.Empty).Trim().ToLowerInvariant();
+        if (normalizedRole == "Analista MESCYT/MINERD")
+        {
+            return normalizedEmail.EndsWith("@minerd.gob.do", StringComparison.OrdinalIgnoreCase)
+                ? "Analista MINERD"
+                : "Analista MESCYT";
+        }
+
+        return normalizedRole;
     }
 
     [HttpPost("login/administrador")]

@@ -177,6 +177,13 @@ const normalizeRoleForUi = rol => {
 const isGov = rol => normalizeRoleForUi(rol) === 'Analista MESCYT/MINERD'
 const isAdmin = rol => normalizeRoleForUi(rol) === 'Administrador'
 const canBackoffice = rol => isGov(rol) || isAdmin(rol)
+const isKnownRole = rol => [
+  'Analista MESCYT/MINERD',
+  'Analista MINERD',
+  'Analista MESCYT',
+  'Estudiante',
+  'Administrador',
+].includes((rol || '').trim())
 
 // Datos de demo para la vista estudiantil
 const DEMO_PENSUM = [
@@ -1013,6 +1020,9 @@ export default function App() {
       }
 
       const rol = normalizeRoleForUi(response.rol || loginForm.rol)
+      if (!isKnownRole(rol)) {
+        throw new Error('El servidor devolvió un rol no reconocido. Vuelve a iniciar sesión.')
+      }
       const auditUser = resolveAuditUserFromToken(
         response.token,
         rol,
@@ -1063,6 +1073,12 @@ export default function App() {
           return
         }
       }
+
+      setAuthToken('')
+      setIsAuthenticated(false)
+      setActiveRole(ROLES[0])
+      setActiveTab(TAB_INICIO)
+      setContingencyMode(false)
 
       setLoginError(message)
     } finally {
