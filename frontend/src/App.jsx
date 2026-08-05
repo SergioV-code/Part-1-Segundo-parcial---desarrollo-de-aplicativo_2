@@ -1993,93 +1993,117 @@ export default function App() {
   if (!isAuthenticated) {
     const esEstudiante = loginForm.rol === 'Estudiante'
     return (
-      <div style={pageStyle} className="flex min-h-screen items-center justify-center p-4">
-        <div className={`${card} w-full max-w-md p-8`}>
-          <div className="mb-6 text-center">
-            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-blue-700 text-white text-2xl font-bold select-none">E</div>
-            <h1 className="text-2xl font-bold text-slate-800">EDUMETRICS-DR</h1>
-            <p className="mt-1 text-sm text-slate-500">Sistema Educativo Dominicano MINERD / MESCYT</p>
+      <div className="min-h-screen bg-slate-100 lg:grid lg:grid-cols-2">
+        <section className="relative overflow-hidden bg-gradient-to-br from-sky-900 via-blue-900 to-indigo-900 p-8 text-white sm:p-10 lg:flex lg:flex-col lg:justify-between lg:p-14">
+          <div className="pointer-events-none absolute inset-0 opacity-20">
+            <div className="absolute -left-20 top-16 h-56 w-56 rounded-full bg-cyan-300 blur-3xl" />
+            <div className="absolute right-4 top-1/2 h-64 w-64 -translate-y-1/2 rounded-full bg-blue-400 blur-3xl" />
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Rol de acceso</label>
-              <select
-                name="rol"
-                value={loginForm.rol}
-                onChange={handleLoginChange}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              >
-                {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
+          <div className="relative z-10">
+            <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 text-2xl font-bold backdrop-blur-sm">E</div>
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">EDUMETRICS-DR</h1>
+            <p className="mt-3 max-w-md text-sm text-blue-100 sm:text-base">
+              Plataforma oficial de gestión educativa y trazabilidad de becas del ecosistema institucional MINERD/MESCYT.
+            </p>
+          </div>
+
+          <div className="relative z-10 mt-8 grid gap-3 text-sm text-blue-100 sm:max-w-md">
+            <div className="rounded-xl border border-white/20 bg-white/10 p-3 backdrop-blur-sm">Gobernanza de expedientes y validaciones académicas.</div>
+            <div className="rounded-xl border border-white/20 bg-white/10 p-3 backdrop-blur-sm">Control de acceso por roles con trazabilidad nominal.</div>
+            <div className="rounded-xl border border-white/20 bg-white/10 p-3 backdrop-blur-sm">Operación integrada para analistas y comunidad estudiantil.</div>
+          </div>
+        </section>
+
+        <section className="flex items-center justify-center bg-slate-50 p-4 sm:p-8 lg:p-12">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-7 shadow-xl shadow-slate-200/70 sm:p-8">
+            <div className="mb-6 text-center">
+              <h2 className="text-2xl font-bold text-slate-800">Acceso a la plataforma</h2>
+              <p className="mt-1 text-sm text-slate-500">Inicia sesión con tus credenciales autorizadas.</p>
             </div>
 
-            {esEstudiante ? (
+            <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Cédula de identidad</label>
-                <input
-                  type="text"
-                  name="usuario"
-                  value={loginForm.usuario}
+                <label className="mb-1 block text-sm font-medium text-slate-700">Rol de acceso</label>
+                <select
+                  name="rol"
+                  value={loginForm.rol}
                   onChange={handleLoginChange}
-                  placeholder="000-0000000-0"
-                  autoComplete="username"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
-                />
-                <p className="mt-1 text-xs text-slate-600">Ingresa tu cédula para acceder al portal estudiantil.</p>
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm transition-all duration-200 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                >
+                  {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
               </div>
-            ) : (
-              <>
+
+              {esEstudiante ? (
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">Usuario institucional</label>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">Cédula de identidad</label>
                   <input
                     type="text"
                     name="usuario"
                     value={loginForm.usuario}
                     onChange={handleLoginChange}
-                    placeholder={loginForm.rol === 'Analista MESCYT/MINERD'
-                      ? 'usuario@minerd.gob.do o usuario@mescyt.gob.do'
-                      : 'admin@edumetrics.gob.do'}
+                    placeholder="000-0000000-0"
                     autoComplete="username"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm transition-all duration-200 focus:border-violet-500 focus:outline-none focus:ring-4 focus:ring-violet-100"
                   />
+                  <p className="mt-1 text-xs text-slate-600">Ingresa tu cédula para acceder al portal estudiantil.</p>
                 </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">Contraseña</label>
-                  <input
-                    type="password"
-                    name="contrasena"
-                    value={loginForm.contrasena}
-                    onChange={handleLoginChange}
-                    placeholder="••••••••"
-                    autoComplete="current-password"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-              </>
-            )}
+              ) : (
+                <>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">Usuario institucional</label>
+                    <input
+                      type="text"
+                      name="usuario"
+                      value={loginForm.usuario}
+                      onChange={handleLoginChange}
+                      placeholder={loginForm.rol === 'Analista MESCYT/MINERD'
+                        ? 'usuario@minerd.gob.do o usuario@mescyt.gob.do'
+                        : 'admin@edumetrics.gob.do'}
+                      autoComplete="username"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm transition-all duration-200 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">Contraseña</label>
+                    <input
+                      type="password"
+                      name="contrasena"
+                      value={loginForm.contrasena}
+                      onChange={handleLoginChange}
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm transition-all duration-200 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                    />
+                  </div>
+                </>
+              )}
 
-            {loginError && (
-              <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{loginError}</p>
-            )}
+              {loginError && (
+                <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{loginError}</p>
+              )}
 
-            <button
-              type="submit"
-              disabled={authSubmitting}
-              className={`w-full rounded-lg py-2.5 text-sm font-semibold text-white transition-colors ${
-                esEstudiante ? 'bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400' : 'bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400'
-              }`}
-            >
-              {authSubmitting
-                ? <span className="inline-flex items-center gap-2"><InlineSpinner className="border-white/50 border-t-white" /> Validando credenciales…</span>
-                : 'Iniciar sesión'}
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={authSubmitting}
+                className={`w-full rounded-lg py-2.5 text-sm font-semibold text-white transition-all duration-200 ${
+                  esEstudiante
+                    ? 'bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400'
+                    : 'bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400'
+                }`}
+              >
+                {authSubmitting
+                  ? <span className="inline-flex items-center gap-2"><InlineSpinner className="border-white/50 border-t-white" /> Validando credenciales…</span>
+                  : 'Iniciar sesión'}
+              </button>
+            </form>
 
-          <p className="mt-4 text-center text-xs text-slate-600">
-            Acceso restringido — Gobierno y estudiantes autorizados.
-          </p>
-        </div>
+            <p className="mt-4 text-center text-xs text-slate-600">
+              Acceso restringido — Gobierno y estudiantes autorizados.
+            </p>
+          </div>
+        </section>
       </div>
     )
   }
