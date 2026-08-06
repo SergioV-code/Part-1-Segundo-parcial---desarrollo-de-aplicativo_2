@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -163,6 +163,18 @@ const TRACEABILITY_EMAIL = 'sergiovargasdiaz316@gmail.com'
 const ANALYST_REVIEW_GENERAL = 'Revision General'
 const ANALYST_REVIEW_DOCUMENTS = 'Validacion Documental'
 const ANALYST_REVIEW_CRITERIA = 'Criterios Internacionales'
+const SCHOLARSHIP_CRITICAL_AUDIT_ACTIONS = new Set([
+  'APROBAR_SOLICITUD_BECA',
+  'RECHAZAR_SOLICITUD_BECA',
+  'COMPLETAR_SOLICITUD_BECA',
+])
+const DOCUMENT_PREVIEW_TEMPLATE = {
+  'Record de notas': { viewType: 'pdf', repositoryCode: 'RDN' },
+  'Titulo legalizado': { viewType: 'pdf', repositoryCode: 'TLG' },
+  'Certificacion de idioma': { viewType: 'pdf', repositoryCode: 'CDI' },
+  'Documento de identidad': { viewType: 'image', repositoryCode: 'DID' },
+  'Carta de admision': { viewType: 'pdf', repositoryCode: 'CAD' },
+}
 
 const VERIFIED_INTERNATIONAL_AGREEMENTS = [
   {
@@ -947,12 +959,147 @@ function getDocumentReviewRows(application) {
   const resolved = Object.keys(metadata).length > 0 ? metadata : fallbackMetadata
 
   return [
-    { label: 'Record de notas', value: resolved['Record de notas'] || '' },
-    { label: 'Titulo legalizado', value: resolved['Titulo legalizado'] || '' },
-    { label: 'Certificacion de idioma', value: resolved['Certificacion de idioma'] || '' },
-    { label: 'Documento de identidad', value: resolved['Documento de identidad'] || '' },
-    { label: 'Carta de admision', value: resolved['Carta de admision'] || '' },
+    {
+      label: 'Record de notas',
+      value: resolved['Record de notas'] || '',
+      ...DOCUMENT_PREVIEW_TEMPLATE['Record de notas'],
+    },
+    {
+      label: 'Titulo legalizado',
+      value: resolved['Titulo legalizado'] || '',
+      ...DOCUMENT_PREVIEW_TEMPLATE['Titulo legalizado'],
+    },
+    {
+      label: 'Certificacion de idioma',
+      value: resolved['Certificacion de idioma'] || '',
+      ...DOCUMENT_PREVIEW_TEMPLATE['Certificacion de idioma'],
+    },
+    {
+      label: 'Documento de identidad',
+      value: resolved['Documento de identidad'] || '',
+      ...DOCUMENT_PREVIEW_TEMPLATE['Documento de identidad'],
+    },
+    {
+      label: 'Carta de admision',
+      value: resolved['Carta de admision'] || '',
+      ...DOCUMENT_PREVIEW_TEMPLATE['Carta de admision'],
+    },
   ]
+}
+
+function normalizeAuditRow(log, source = 'session') {
+  if (!log) return null
+  const fecha = (log.fecha || log.fechaHora || '').toString().trim()
+  if (!fecha) return null
+
+  return {
+    id: (log.id || `${source}-${fecha}-${Math.random().toString(36).slice(2, 8)}`).toString(),
+    fecha,
+    usuario: (log.usuario || '').toString().trim() || 'anonimo',
+    rol: (log.rol || '').toString().trim() || 'sin-rol',
+    accion: (log.accion || '').toString().trim() || 'SIN_ACCION',
+    detalles: (log.detalles || '').toString().trim() || 'Sin detalles',
+    source,
+  }
+}
+
+function normalizeAuditCollection(rows, source) {
+  return (Array.isArray(rows) ? rows : [])
+    .map(item => normalizeAuditRow(item, source))
+    .filter(Boolean)
+}
+
+function mergeAuditCollections(sessionLogs, backendLogs) {
+  const merged = [...normalizeAuditCollection(sessionLogs, 'session'), ...normalizeAuditCollection(backendLogs, 'backend')]
+  const unique = new Map()
+
+  for (const item of merged) {
+    const key = `${item.fecha}|${item.usuario}|${item.accion}|${item.detalles}`
+    if (!unique.has(key)) {
+      unique.set(key, item)
+    }
+  }
+
+  return Array.from(unique.values()).sort((a, b) => new Date(b.fecha || 0) - new Date(a.fecha || 0))
+}
+
+function buildDocumentPdfPreviewBlob(docLabel, application, docValue) {
+  const document = new jsPDF({ orientation: 'portrait' })
+  document.setFontSize(14)
+  document.text('EDUMETRICS-DR - Visor Institucional de Documentos', 14, 16)
+  document.setFontSize(10)
+  document.text(`Documento: ${docLabel}`, 14, 26)
+  document.text(`Expediente: ${(application?.studentCedula || '').trim() || 'No informado'}`, 14, 34)
+  document.text(`Estudiante: ${(application?.studentName || '').trim() || 'No informado'}`, 14, 42)
+  document.text(`Solicitud: #${application?.id || 'N/A'}`, 14, 50)
+  document.text(`Fuente: Repositorio institucional MESCYT/MINERD`, 14, 58)
+  document.text(`Detalle: ${docValue || 'Precargado automaticamente para validacion'}`, 14, 66, { maxWidth: 180 })
+  document.setFontSize(9)
+  document.text(`Generado: ${new Date().toLocaleString('es-DO')}`, 14, 78)
+  return document.output('blob')
+}
+
+function buildDocumentImagePreviewBlob(docLabel, application, docValue) {
+  const escapedLabel = (docLabel || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const escapedCedula = ((application?.studentCedula || '').trim() || 'No informado')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const escapedStudent = ((application?.studentName || '').trim() || 'No informado')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const escapedValue = (docValue || 'Precargado automaticamente para validacion')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 1200 1600">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#ecfeff" />
+          <stop offset="100%" stop-color="#dbeafe" />
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="1600" fill="url(#bg)" />
+      <rect x="70" y="70" width="1060" height="1460" rx="28" fill="#ffffff" stroke="#0f172a" stroke-width="4" />
+      <text x="130" y="170" font-size="44" font-family="Segoe UI, sans-serif" fill="#0f172a">EDUMETRICS-DR · Visor Institucional</text>
+      <text x="130" y="250" font-size="34" font-family="Segoe UI, sans-serif" fill="#0f172a">Documento: ${escapedLabel}</text>
+      <text x="130" y="320" font-size="30" font-family="Segoe UI, sans-serif" fill="#1e293b">Estudiante: ${escapedStudent}</text>
+      <text x="130" y="380" font-size="30" font-family="Segoe UI, sans-serif" fill="#1e293b">Cedula: ${escapedCedula}</text>
+      <text x="130" y="440" font-size="26" font-family="Segoe UI, sans-serif" fill="#334155">Solicitud: #${application?.id || 'N/A'}</text>
+      <text x="130" y="500" font-size="26" font-family="Segoe UI, sans-serif" fill="#334155">Fuente: Repositorio institucional MESCYT/MINERD</text>
+      <foreignObject x="130" y="560" width="940" height="800">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:Segoe UI,sans-serif;font-size:28px;color:#0f172a;line-height:1.45;">
+          ${escapedValue}
+        </div>
+      </foreignObject>
+      <text x="130" y="1480" font-size="24" font-family="Segoe UI, sans-serif" fill="#475569">Generado: ${new Date().toLocaleString('es-DO')}</text>
+    </svg>
+  `.trim()
+
+  return new Blob([svg], { type: 'image/svg+xml' })
+}
+
+function buildDocumentPreviewArtifact(documentRow, application) {
+  if (!documentRow || !application) return null
+
+  if (documentRow.viewType === 'image') {
+    const imageBlob = buildDocumentImagePreviewBlob(documentRow.label, application, documentRow.value)
+    return {
+      url: URL.createObjectURL(imageBlob),
+      viewerType: 'image',
+      repositoryCode: documentRow.repositoryCode || 'DOC',
+      title: documentRow.label,
+      source: 'Repositorio institucional MESCYT/MINERD',
+      details: documentRow.value || 'Precargado automaticamente',
+    }
+  }
+
+  const pdfBlob = buildDocumentPdfPreviewBlob(documentRow.label, application, documentRow.value)
+  return {
+    url: URL.createObjectURL(pdfBlob),
+    viewerType: 'pdf',
+    repositoryCode: documentRow.repositoryCode || 'DOC',
+    title: documentRow.label,
+    source: 'Repositorio institucional MESCYT/MINERD',
+    details: documentRow.value || 'Precargado automaticamente',
+  }
 }
 
 function buildScholarshipCommentPayload(form, studentIdentity = '') {
@@ -1147,6 +1294,9 @@ export default function App() {
 
   // Auditoría
   const [auditLogs, setAuditLogs] = useState([])
+  const [backendAuditLogs, setBackendAuditLogs] = useState([])
+  const [auditLoading, setAuditLoading] = useState(false)
+  const [auditError, setAuditError] = useState('')
   const [studentProfileData, setStudentProfileData] = useState(null)
 
   // Administración de usuarios
@@ -1193,6 +1343,13 @@ export default function App() {
   const [scholarshipValidationAttempted, setScholarshipValidationAttempted] = useState(false)
   const [analysisDrafts, setAnalysisDrafts] = useState({})
   const [rejectionModal, setRejectionModal] = useState({ open: false, application: null, reason: '', error: '' })
+  const [scholarshipFilters, setScholarshipFilters] = useState({
+    cedula: '',
+    destinationCountry: 'Todos',
+    foreignUniversity: 'Todas',
+  })
+  const [selectedDocumentPreview, setSelectedDocumentPreview] = useState(null)
+  const selectedDocumentPreviewUrlRef = useRef('')
   const scholarshipValidation = useMemo(() => validateScholarshipRequestForm(scholarshipForm), [scholarshipForm])
   const internationalCountryOptions = useMemo(
     () => Array.from(new Set(VERIFIED_INTERNATIONAL_AGREEMENTS.map(item => item.country))),
@@ -1231,11 +1388,69 @@ export default function App() {
 
     return Array.from(unique.values()).sort((a, b) => new Date(b.submittedAtUtc || 0) - new Date(a.submittedAtUtc || 0))
   }, [pendingScholarshipApplications, economicScholarshipApplications])
-  const analystInternationalApplications = useMemo(
-    () => analystScholarshipApplications
-      .map(application => ({ application, details: getInternationalDetailsFromApplication(application) }))
-      .filter(row => row.details.isInternational),
+  const analystRowsWithDetails = useMemo(
+    () => analystScholarshipApplications.map(application => ({
+      application,
+      details: getInternationalDetailsFromApplication(application),
+    })),
     [analystScholarshipApplications],
+  )
+  const analystFilterCountryOptions = useMemo(
+    () => Array.from(new Set(
+      analystRowsWithDetails
+        .map(row => (row.details.country || '').trim())
+        .filter(Boolean),
+    )).sort((a, b) => a.localeCompare(b, 'es')),
+    [analystRowsWithDetails],
+  )
+  const analystFilterUniversityOptions = useMemo(
+    () => Array.from(new Set(
+      analystRowsWithDetails
+        .filter(row => {
+          const filterCountry = (scholarshipFilters.destinationCountry || 'Todos').trim()
+          if (filterCountry === 'Todos') return true
+          return (row.details.country || '').trim() === filterCountry
+        })
+        .map(row => (row.details.university || '').trim())
+        .filter(Boolean),
+    )).sort((a, b) => a.localeCompare(b, 'es')),
+    [analystRowsWithDetails, scholarshipFilters.destinationCountry],
+  )
+  const filteredAnalystRows = useMemo(() => {
+    const cedulaFilter = normalizeCedula(scholarshipFilters.cedula)
+    const countryFilter = (scholarshipFilters.destinationCountry || 'Todos').trim()
+    const universityFilter = (scholarshipFilters.foreignUniversity || 'Todas').trim()
+
+    return analystRowsWithDetails.filter(row => {
+      const cedulaCandidate = normalizeCedula(row.application?.studentCedula || '')
+      const countryCandidate = (row.details.country || '').trim()
+      const universityCandidate = (row.details.university || '').trim()
+
+      const cedulaMatch = !cedulaFilter || cedulaCandidate.includes(cedulaFilter)
+      const countryMatch = countryFilter === 'Todos' || countryCandidate === countryFilter
+      const universityMatch = universityFilter === 'Todas' || universityCandidate === universityFilter
+      return cedulaMatch && countryMatch && universityMatch
+    })
+  }, [analystRowsWithDetails, scholarshipFilters])
+  const filteredAnalystApplications = useMemo(
+    () => filteredAnalystRows.map(row => row.application),
+    [filteredAnalystRows],
+  )
+  const filteredAnalystInternationalApplications = useMemo(
+    () => filteredAnalystRows.filter(row => row.details.isInternational),
+    [filteredAnalystRows],
+  )
+  const filteredPendingScholarshipApplications = useMemo(
+    () => filteredAnalystApplications.filter(application => application.status === 'Pendiente'),
+    [filteredAnalystApplications],
+  )
+  const filteredEconomicScholarshipApplications = useMemo(
+    () => filteredAnalystApplications.filter(application => application.status === 'En Análisis Económico'),
+    [filteredAnalystApplications],
+  )
+  const mergedAuditLogs = useMemo(
+    () => mergeAuditCollections(auditLogs, backendAuditLogs),
+    [auditLogs, backendAuditLogs],
   )
 
   // ── Auditoría helper ────────────────────────────────────────────────────────
@@ -1248,6 +1463,51 @@ export default function App() {
       accion,
       detalles,
     }, ...prev]), [])
+
+  const handleScholarshipFilterChange = e => {
+    const { name, value } = e.target
+    setScholarshipFilters(prev => {
+      if (name === 'destinationCountry') {
+        return {
+          ...prev,
+          destinationCountry: value,
+          foreignUniversity: value === 'Todos' ? 'Todas' : prev.foreignUniversity,
+        }
+      }
+
+      return { ...prev, [name]: value }
+    })
+  }
+
+  const resetScholarshipFilters = () => {
+    setScholarshipFilters({ cedula: '', destinationCountry: 'Todos', foreignUniversity: 'Todas' })
+  }
+
+  const openDocumentPreview = useCallback((application, documentRow) => {
+    const artifact = buildDocumentPreviewArtifact(documentRow, application)
+    if (!artifact?.url) return
+
+    if (selectedDocumentPreviewUrlRef.current) {
+      URL.revokeObjectURL(selectedDocumentPreviewUrlRef.current)
+      selectedDocumentPreviewUrlRef.current = ''
+    }
+
+    selectedDocumentPreviewUrlRef.current = artifact.url
+    setSelectedDocumentPreview({
+      applicationId: application.id,
+      studentName: application.studentName,
+      studentCedula: application.studentCedula,
+      ...artifact,
+    })
+  }, [])
+
+  const closeDocumentPreview = useCallback(() => {
+    if (selectedDocumentPreviewUrlRef.current) {
+      URL.revokeObjectURL(selectedDocumentPreviewUrlRef.current)
+      selectedDocumentPreviewUrlRef.current = ''
+    }
+    setSelectedDocumentPreview(null)
+  }, [])
 
   // ── Fetch de estudiantes ────────────────────────────────────────────────────
   const fetchStudents = useCallback(async token => {
@@ -1300,6 +1560,26 @@ export default function App() {
       setAdminUsers([])
     } finally {
       setUsersLoading(false)
+    }
+  }, [])
+
+  const fetchAuditLogs = useCallback(async token => {
+    if (!token || (token || '').startsWith('contingency-token')) {
+      setBackendAuditLogs([])
+      return
+    }
+
+    try {
+      setAuditLoading(true)
+      setAuditError('')
+      const raw = await apiRequest('/Audit', { method: 'GET', token })
+      const normalized = normalizeAuditCollection(raw, 'backend')
+      setBackendAuditLogs(normalized)
+    } catch (error) {
+      setAuditError(error?.message || 'No fue posible sincronizar la auditoria del backend.')
+      setBackendAuditLogs([])
+    } finally {
+      setAuditLoading(false)
     }
   }, [])
 
@@ -1461,6 +1741,23 @@ export default function App() {
     if (!isAuthenticated || !authToken || !isAdmin(activeRole) || authToken === 'contingency-token') return
     fetchAdminUsers(authToken)
   }, [isAuthenticated, authToken, activeRole, fetchAdminUsers])
+
+  useEffect(() => {
+    if (!isAuthenticated || !authToken || !canBackoffice(activeRole)) return
+    fetchAuditLogs(authToken)
+  }, [isAuthenticated, authToken, activeRole, fetchAuditLogs])
+
+  useEffect(() => {
+    if (activeTab !== TAB_AUDITORIA || !isAuthenticated || !authToken || !canBackoffice(activeRole)) return
+    fetchAuditLogs(authToken)
+  }, [activeTab, isAuthenticated, authToken, activeRole, fetchAuditLogs])
+
+  useEffect(() => () => {
+    if (selectedDocumentPreviewUrlRef.current) {
+      URL.revokeObjectURL(selectedDocumentPreviewUrlRef.current)
+      selectedDocumentPreviewUrlRef.current = ''
+    }
+  }, [])
 
   useEffect(() => {
     if (!isAuthenticated || !authToken) return
@@ -1648,6 +1945,9 @@ export default function App() {
     setStudents([])
     setStudentProfileData(null)
     setAuditLogs([])
+    setBackendAuditLogs([])
+    setAuditLoading(false)
+    setAuditError('')
     setAdminUsers([])
     setScholarshipForm(emptyScholarshipForm)
     setScholarshipFormError('')
@@ -1662,6 +1962,8 @@ export default function App() {
     setScholarshipValidationAttempted(false)
     setAnalysisDrafts({})
     setRejectionModal({ open: false, application: null, reason: '', error: '' })
+    setScholarshipFilters({ cedula: '', destinationCountry: 'Todos', foreignUniversity: 'Todas' })
+    closeDocumentPreview()
     setUsersError('')
     setUserForm(emptyUserForm)
     setEditingUserId(null)
@@ -1781,7 +2083,7 @@ export default function App() {
         'CREAR_SOLICITUD_BECA',
         `Estudiante solicitó la beca "${payload.scholarshipName}". Notificación y trazabilidad nominal: ${TRACEABILITY_EMAIL}.`,
         activeRole,
-        TRACEABILITY_EMAIL,
+        sessionAuditUser,
       )
       await refreshScholarshipData()
     } catch (error) {
@@ -1795,17 +2097,22 @@ export default function App() {
     if (!application?.id || scholarshipActionId) return
 
     try {
+      const details = getInternationalDetailsFromApplication(application)
+      const criteriaSuffix = details.isInternational
+        ? ` Criterios validados [Internacional]: Pais=${details.country || 'No informado'}; Universidad=${details.university || 'No informada'}; Cobertura=${details.coverage || 'No informada'}; Idioma/Admision=${details.languageOrAdmission || 'No informado'}.`
+        : ' Criterios validados: modalidad nacional.'
       setScholarshipActionId(`approve-${application.id}`)
       setScholarshipSuccess('')
       setScholarshipError('')
       await apiRequest(`/ScholarshipApplications/${application.id}/approve`, { method: 'POST', token: authToken })
       pushAudit(
         'APROBAR_SOLICITUD_BECA',
-        `Solicitud #${application.id} aprobada y enviada a análisis económico. Trazabilidad nominal: ${TRACEABILITY_EMAIL}.`,
+        `Solicitud #${application.id} aprobada y enviada a análisis económico.${criteriaSuffix}`,
         activeRole,
-        TRACEABILITY_EMAIL,
+        sessionAuditUser,
       )
       await refreshScholarshipData()
+      await fetchAuditLogs(authToken)
       setScholarshipSuccess(`Solicitud #${application.id} aprobada. Nueva fase: En Análisis Económico.`)
     } catch (error) {
       setScholarshipError(error?.message || 'No se pudo aprobar la solicitud.')
@@ -1832,6 +2139,10 @@ export default function App() {
 
     try {
       const applicationId = rejectionModal.application?.id
+      const details = getInternationalDetailsFromApplication(rejectionModal.application)
+      const criteriaSuffix = details.isInternational
+        ? ` Criterios validados [Internacional]: Pais=${details.country || 'No informado'}; Universidad=${details.university || 'No informada'}; Cobertura=${details.coverage || 'No informada'}; Idioma/Admision=${details.languageOrAdmission || 'No informado'}.`
+        : ' Criterios validados: modalidad nacional.'
       if (!applicationId) return
       setScholarshipActionId(`reject-${applicationId}`)
       setScholarshipError('')
@@ -1842,12 +2153,13 @@ export default function App() {
       })
       pushAudit(
         'RECHAZAR_SOLICITUD_BECA',
-        `Solicitud #${applicationId} rechazada. Motivo: ${reason}. Trazabilidad nominal: ${TRACEABILITY_EMAIL}.`,
+        `Solicitud #${applicationId} rechazada. Motivo: ${reason}.${criteriaSuffix}`,
         activeRole,
-        TRACEABILITY_EMAIL,
+        sessionAuditUser,
       )
       closeRejectScholarshipModal()
       await refreshScholarshipData()
+      await fetchAuditLogs(authToken)
       setScholarshipSuccess(`Solicitud #${applicationId} rechazada y motivo almacenado en el historial.`)
     } catch (error) {
       setRejectionModal(prev => ({ ...prev, error: error?.message || 'No se pudo rechazar la solicitud.' }))
@@ -1881,6 +2193,10 @@ export default function App() {
     }
 
     try {
+      const details = getInternationalDetailsFromApplication(application)
+      const criteriaSuffix = details.isInternational
+        ? ` Criterios validados [Internacional]: Pais=${details.country || 'No informado'}; Universidad=${details.university || 'No informada'}; Cobertura=${details.coverage || 'No informada'}; Idioma/Admision=${details.languageOrAdmission || 'No informado'}.`
+        : ' Criterios validados: modalidad nacional.'
       setScholarshipActionId(`complete-${application.id}`)
       setScholarshipError('')
       await apiRequest(`/ScholarshipApplications/${application.id}/complete-economic-analysis`, {
@@ -1890,11 +2206,12 @@ export default function App() {
       })
       pushAudit(
         'COMPLETAR_SOLICITUD_BECA',
-        `Solicitud #${application.id} completada con análisis financiero y verificación escolar. Trazabilidad nominal: ${TRACEABILITY_EMAIL}.`,
+        `Solicitud #${application.id} completada con análisis financiero y verificación escolar.${criteriaSuffix}`,
         activeRole,
-        TRACEABILITY_EMAIL,
+        sessionAuditUser,
       )
       await refreshScholarshipData()
+      await fetchAuditLogs(authToken)
       setScholarshipSuccess(`Solicitud #${application.id} completada correctamente.`)
     } catch (error) {
       setScholarshipError(error?.message || 'No se pudo finalizar la solicitud.')
@@ -2291,14 +2608,15 @@ export default function App() {
   }
 
   const exportAuditoriaExcel = async () => {
-    if (auditLogs.length === 0) throw new Error('No hay eventos de auditoria para exportar en esta sesion.')
+    if (mergedAuditLogs.length === 0) throw new Error('No hay eventos de auditoria para exportar.')
 
-    const rows = auditLogs.map(item => ({
+    const rows = mergedAuditLogs.map(item => ({
       FechaHora: fmt(item.fecha),
       Usuario: item.usuario || '—',
       Rol: item.rol || activeRole,
       Accion: item.accion || '—',
       Detalles: item.detalles || '—',
+      Fuente: item.source === 'backend' ? 'Backend' : 'Sesion',
     }))
 
     const worksheet = XLSX.utils.json_to_sheet(rows)
@@ -2308,7 +2626,7 @@ export default function App() {
   }
 
   const exportAuditoriaPdf = async () => {
-    if (auditLogs.length === 0) throw new Error('No hay eventos de auditoria para exportar en esta sesion.')
+    if (mergedAuditLogs.length === 0) throw new Error('No hay eventos de auditoria para exportar.')
 
     const doc = new jsPDF({ orientation: 'landscape' })
     doc.setFontSize(14)
@@ -2318,13 +2636,14 @@ export default function App() {
 
     autoTable(doc, {
       startY: 26,
-      head: [['Fecha y Hora', 'Usuario', 'Rol', 'Accion', 'Detalles']],
-      body: auditLogs.map(item => [
+      head: [['Fecha y Hora', 'Usuario', 'Rol', 'Accion', 'Detalles', 'Fuente']],
+      body: mergedAuditLogs.map(item => [
         fmt(item.fecha),
         item.usuario || '—',
         item.rol || activeRole,
         item.accion || '—',
         item.detalles || '—',
+        item.source === 'backend' ? 'Backend' : 'Sesion',
       ]),
       styles: { fontSize: 8 },
       headStyles: { fillColor: [22, 101, 52] },
@@ -2924,11 +3243,11 @@ export default function App() {
               <h2 className="text-base font-semibold text-slate-800">Registro de Auditoría</h2>
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                  {auditLogs.length} evento{auditLogs.length !== 1 ? 's' : ''}
+                  {mergedAuditLogs.length} evento{mergedAuditLogs.length !== 1 ? 's' : ''}
                 </span>
                 <button
                   type="button"
-                  disabled={exporting !== '' || auditLogs.length === 0}
+                  disabled={exporting !== '' || mergedAuditLogs.length === 0}
                   onClick={() => runExport('auditoria-excel', exportAuditoriaExcel)}
                   className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 disabled:opacity-50"
                 >
@@ -2937,7 +3256,7 @@ export default function App() {
                 </button>
                 <button
                   type="button"
-                  disabled={exporting !== '' || auditLogs.length === 0}
+                  disabled={exporting !== '' || mergedAuditLogs.length === 0}
                   onClick={() => runExport('auditoria-pdf', exportAuditoriaPdf)}
                   className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 disabled:opacity-50"
                 >
@@ -2950,8 +3269,20 @@ export default function App() {
                     Limpiar sesión
                   </button>
                 )}
+                <button
+                  type="button"
+                  disabled={auditLoading}
+                  onClick={() => fetchAuditLogs(authToken)}
+                  className="inline-flex items-center gap-2 rounded-full border border-cyan-300 bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-800 disabled:opacity-50"
+                >
+                  {auditLoading && <InlineSpinner />}
+                  Sincronizar backend
+                </button>
               </div>
             </div>
+            {auditError && (
+              <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{auditError}</p>
+            )}
             <div className="overflow-x-auto rounded-xl border border-slate-200">
               <table className="w-full text-sm text-left">
                 <thead className="bg-slate-50 border-b border-slate-200">
@@ -2964,22 +3295,25 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {auditLogs.length === 0 ? (
+                  {mergedAuditLogs.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
-                        No hay eventos registrados en esta sesión.
+                        No hay eventos de auditoría disponibles.
                       </td>
                     </tr>
                   ) : (
-                    auditLogs.map(log => {
+                    mergedAuditLogs.map(log => {
                       const accionColor = {
                         SESION_INICIO: 'bg-blue-100 text-blue-800',
                         CREAR:         'bg-emerald-100 text-emerald-800',
                         ACTUALIZAR:    'bg-amber-100 text-amber-800',
                         ELIMINAR:      'bg-rose-100 text-rose-800',
                       }[log.accion] ?? 'bg-slate-200 text-slate-800'
+                      const rowHighlight = SCHOLARSHIP_CRITICAL_AUDIT_ACTIONS.has(log.accion)
+                        ? 'bg-amber-50/40'
+                        : ''
                       return (
-                        <tr key={log.id} className="hover:bg-slate-50 border-b border-slate-100 transition-colors">
+                        <tr key={log.id} className={`hover:bg-slate-50 border-b border-slate-100 transition-colors ${rowHighlight}`}>
                           <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{fmt(log.fecha)}</td>
                           <td className="px-4 py-3 font-medium text-slate-700">{log.usuario}</td>
                           <td className="px-4 py-3 text-slate-700">{log.rol || activeRole}</td>
@@ -3175,10 +3509,13 @@ export default function App() {
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs">
                   <span className="rounded-full bg-amber-100 px-3 py-1 font-semibold text-amber-800">
-                    Pendientes: {pendingScholarshipApplications.length}
+                    Pendientes: {filteredPendingScholarshipApplications.length}
                   </span>
                   <span className="rounded-full bg-blue-100 px-3 py-1 font-semibold text-blue-800">
-                    En Análisis: {economicScholarshipApplications.length}
+                    En Análisis: {filteredEconomicScholarshipApplications.length}
+                  </span>
+                  <span className="rounded-full bg-cyan-100 px-3 py-1 font-semibold text-cyan-800">
+                    Filtrados: {filteredAnalystApplications.length} de {analystScholarshipApplications.length}
                   </span>
                 </div>
               </div>
@@ -3194,6 +3531,55 @@ export default function App() {
                   </button>
                 ))}
               </div>
+              <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:grid-cols-4">
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
+                  Buscar por cédula
+                  <input
+                    name="cedula"
+                    value={scholarshipFilters.cedula}
+                    onChange={handleScholarshipFilterChange}
+                    placeholder="00100000011"
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 focus:border-cyan-500 focus:outline-none"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
+                  País de destino
+                  <select
+                    name="destinationCountry"
+                    value={scholarshipFilters.destinationCountry}
+                    onChange={handleScholarshipFilterChange}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 focus:border-cyan-500 focus:outline-none"
+                  >
+                    <option value="Todos">Todos</option>
+                    {analystFilterCountryOptions.map(country => (
+                      <option key={`country-filter-${country}`} value={country}>{country}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
+                  Universidad extranjera
+                  <select
+                    name="foreignUniversity"
+                    value={scholarshipFilters.foreignUniversity}
+                    onChange={handleScholarshipFilterChange}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 focus:border-cyan-500 focus:outline-none"
+                  >
+                    <option value="Todas">Todas</option>
+                    {analystFilterUniversityOptions.map(university => (
+                      <option key={`university-filter-${university}`} value={university}>{university}</option>
+                    ))}
+                  </select>
+                </label>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={resetScholarshipFilters}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+                  >
+                    Limpiar filtros
+                  </button>
+                </div>
+              </div>
             </div>
 
             {scholarshipError && (
@@ -3204,16 +3590,17 @@ export default function App() {
               <div className={`${card} p-5 space-y-4`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-base font-semibold text-slate-800">Validación Documental</h3>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">Expedientes: {analystScholarshipApplications.length}</span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">Expedientes: {filteredAnalystApplications.length}</span>
                 </div>
 
-                {analystScholarshipApplications.length === 0 ? (
+                {filteredAnalystApplications.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">
                     No hay expedientes de becas para revisión documental.
                   </div>
                 ) : (
                   <div className="grid gap-4 xl:grid-cols-2">
-                    {analystScholarshipApplications.map(application => {
+                    <div className="space-y-4">
+                    {filteredAnalystApplications.map(application => {
                       const documents = getDocumentReviewRows(application)
                       return (
                         <article key={`doc-${application.id}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
@@ -3232,11 +3619,24 @@ export default function App() {
                               {documents.map(doc => {
                                 const hasValue = Boolean((doc.value || '').trim())
                                 return (
-                                  <div key={`${application.id}-${doc.label}`} className="flex items-center justify-between gap-3">
-                                    <span className="text-slate-700">{doc.label}</span>
-                                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${hasValue ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                                      {hasValue ? 'Disponible' : 'Pendiente'}
-                                    </span>
+                                  <div key={`${application.id}-${doc.label}`} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                    <div>
+                                      <span className="text-slate-700">{doc.label}</span>
+                                      <p className="text-xs text-slate-500">Fuente institucional {doc.repositoryCode || 'DOC'}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${hasValue ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                                        {hasValue ? 'Disponible' : 'Pendiente'}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => openDocumentPreview(application, doc)}
+                                        disabled={!hasValue}
+                                        className="rounded-full border border-cyan-300 bg-cyan-50 px-2 py-1 text-xs font-semibold text-cyan-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        Ver
+                                      </button>
+                                    </div>
                                   </div>
                                 )
                               })}
@@ -3245,6 +3645,46 @@ export default function App() {
                         </article>
                       )
                     })}
+                    </div>
+                    <aside className="rounded-2xl border border-cyan-200 bg-cyan-50/40 p-4 shadow-sm">
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <h4 className="text-sm font-semibold text-slate-800">Visor integrado de documentos</h4>
+                        {selectedDocumentPreview && (
+                          <button
+                            type="button"
+                            onClick={closeDocumentPreview}
+                            className="rounded-full border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-600"
+                          >
+                            Cerrar visor
+                          </button>
+                        )}
+                      </div>
+
+                      {!selectedDocumentPreview ? (
+                        <div className="flex min-h-[460px] items-center justify-center rounded-xl border border-dashed border-cyan-300 bg-white p-4 text-center text-sm text-slate-500">
+                          Selecciona un documento disponible para previsualizarlo de forma nativa como PDF o imagen sin salir de la plataforma.
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+                            <p><span className="font-semibold text-slate-700">Documento:</span> {selectedDocumentPreview.title}</p>
+                            <p><span className="font-semibold text-slate-700">Expediente:</span> {selectedDocumentPreview.studentCedula}</p>
+                            <p><span className="font-semibold text-slate-700">Analizado para:</span> {selectedDocumentPreview.studentName}</p>
+                            <p><span className="font-semibold text-slate-700">Origen:</span> {selectedDocumentPreview.source}</p>
+                          </div>
+
+                          <div className="overflow-hidden rounded-xl border border-slate-300 bg-white">
+                            {selectedDocumentPreview.viewerType === 'image' ? (
+                              <img src={selectedDocumentPreview.url} alt={selectedDocumentPreview.title} className="h-[620px] w-full object-contain bg-slate-100" />
+                            ) : (
+                              <iframe title={selectedDocumentPreview.title} src={selectedDocumentPreview.url} className="h-[620px] w-full" />
+                            )}
+                          </div>
+
+                          <p className="text-xs text-slate-500">{selectedDocumentPreview.details}</p>
+                        </div>
+                      )}
+                    </aside>
                   </div>
                 )}
               </div>
@@ -3254,16 +3694,16 @@ export default function App() {
               <div className={`${card} p-5 space-y-4`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-base font-semibold text-slate-800">Criterios Internacionales Detallados</h3>
-                  <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">Casos internacionales: {analystInternationalApplications.length}</span>
+                  <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">Casos internacionales: {filteredAnalystInternationalApplications.length}</span>
                 </div>
 
-                {analystInternationalApplications.length === 0 ? (
+                {filteredAnalystInternationalApplications.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">
                     No hay solicitudes internacionales en la bandeja actual.
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {analystInternationalApplications.map(row => {
+                    {filteredAnalystInternationalApplications.map(row => {
                       const { application, details } = row
                       const agreement = details.agreement
                       return (
@@ -3299,13 +3739,13 @@ export default function App() {
                 {scholarshipLoading && <span className="inline-flex items-center gap-2 text-sm text-slate-500"><InlineSpinner /> Cargando bandeja…</span>}
               </div>
 
-              {pendingScholarshipApplications.length === 0 ? (
+              {filteredPendingScholarshipApplications.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">
                   No hay solicitudes pendientes en este momento.
                 </div>
               ) : (
                 <div className="grid gap-4 xl:grid-cols-2">
-                  {pendingScholarshipApplications.map(application => (
+                  {filteredPendingScholarshipApplications.map(application => (
                     <article key={application.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -3378,13 +3818,13 @@ export default function App() {
             <div className={`${card} p-5 space-y-4`}>
               <h3 className="text-base font-semibold text-slate-800">Fase de Análisis Económico</h3>
 
-              {economicScholarshipApplications.length === 0 ? (
+              {filteredEconomicScholarshipApplications.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">
                   No hay solicitudes en análisis económico.
                 </div>
               ) : (
                 <div className="grid gap-4 xl:grid-cols-2">
-                  {economicScholarshipApplications.map(application => {
+                  {filteredEconomicScholarshipApplications.map(application => {
                     const draft = analysisDrafts[application.id] || {
                       financialAnalysisCompleted: Boolean(application.financialAnalysisCompleted),
                       secondaryStudiesVerificationCompleted: Boolean(application.secondaryStudiesVerificationCompleted),

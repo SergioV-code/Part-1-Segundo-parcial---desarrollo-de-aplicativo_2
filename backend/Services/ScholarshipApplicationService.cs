@@ -2,6 +2,7 @@ using EDUMETRICS_DR.Data;
 using EDUMETRICS_DR.DTOs;
 using EDUMETRICS_DR.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 
 namespace EDUMETRICS_DR.Services;
 
@@ -138,6 +139,7 @@ public class ScholarshipApplicationService : IScholarshipApplicationService
         await _context.SaveChangesAsync(cancellationToken);
 
         await LogAuditAsync(
+            application.StudentCedula,
             SystemRoles.Estudiante,
             "CREAR_SOLICITUD_BECA",
             $"Solicitud #{application.Id} creada por estudiante {application.StudentCedula}. Trazabilidad nominal y notificación: {ScholarshipTraceability.InstitutionalEmail}.",
@@ -201,10 +203,12 @@ public class ScholarshipApplicationService : IScholarshipApplicationService
             $"Solicitud aprobada en primera fase. Continúa en análisis económico. Notificación y trazabilidad: {ScholarshipTraceability.InstitutionalEmail}."));
 
         await _context.SaveChangesAsync(cancellationToken);
+        var internationalCriteria = BuildInternationalCriteriaAuditSuffix(application);
         await LogAuditAsync(
+            actorEmail,
             actorRole,
             "APROBAR_SOLICITUD_BECA",
-            $"Solicitud #{application.Id} aprobada por {actorEmail}. Nueva fase: {ScholarshipApplicationStatuses.EnAnalisisEconomico}. Trazabilidad nominal: {ScholarshipTraceability.InstitutionalEmail}.",
+            $"Solicitud #{application.Id} aprobada por {actorEmail}. Nueva fase: {ScholarshipApplicationStatuses.EnAnalisisEconomico}. Trazabilidad nominal: {ScholarshipTraceability.InstitutionalEmail}.{internationalCriteria}",
             cancellationToken);
 
         return await GetByIdOrDefaultAsync(id, cancellationToken);
@@ -246,10 +250,12 @@ public class ScholarshipApplicationService : IScholarshipApplicationService
             $"Motivo de rechazo: {reason}. Trazabilidad nominal: {ScholarshipTraceability.InstitutionalEmail}."));
 
         await _context.SaveChangesAsync(cancellationToken);
+        var internationalCriteria = BuildInternationalCriteriaAuditSuffix(application);
         await LogAuditAsync(
+            actorEmail,
             actorRole,
             "RECHAZAR_SOLICITUD_BECA",
-            $"Solicitud #{application.Id} rechazada por {actorEmail}. Motivo: {reason}. Trazabilidad nominal: {ScholarshipTraceability.InstitutionalEmail}.",
+            $"Solicitud #{application.Id} rechazada por {actorEmail}. Motivo: {reason}. Trazabilidad nominal: {ScholarshipTraceability.InstitutionalEmail}.{internationalCriteria}",
             cancellationToken);
 
         return await GetByIdOrDefaultAsync(id, cancellationToken);
@@ -291,10 +297,12 @@ public class ScholarshipApplicationService : IScholarshipApplicationService
             $"Análisis financiero y verificación escolar completados. Trazabilidad nominal: {ScholarshipTraceability.InstitutionalEmail}."));
 
         await _context.SaveChangesAsync(cancellationToken);
+        var internationalCriteria = BuildInternationalCriteriaAuditSuffix(application);
         await LogAuditAsync(
+            actorEmail,
             actorRole,
             "COMPLETAR_SOLICITUD_BECA",
-            $"Solicitud #{application.Id} completada por {actorEmail}. Ambas verificaciones marcadas. Trazabilidad nominal: {ScholarshipTraceability.InstitutionalEmail}.",
+            $"Solicitud #{application.Id} completada por {actorEmail}. Ambas verificaciones marcadas. Trazabilidad nominal: {ScholarshipTraceability.InstitutionalEmail}.{internationalCriteria}",
             cancellationToken);
 
         return await GetByIdOrDefaultAsync(id, cancellationToken);
@@ -341,14 +349,95 @@ public class ScholarshipApplicationService : IScholarshipApplicationService
         };
     }
 
-    private async Task LogAuditAsync(string role, string action, string details, CancellationToken cancellationToken)
+    private async Task LogAuditAsync(string actorIdentifier, string role, string action, string details, CancellationToken cancellationToken)
     {
         await _auditService.LogAsync(
-            ScholarshipTraceability.InstitutionalEmail,
+            string.IsNullOrWhiteSpace(actorIdentifier) ? ScholarshipTraceability.InstitutionalEmail : actorIdentifier.Trim(),
             role,
             action,
             details,
             cancellationToken);
+    }
+
+    private static string BuildInternationalCriteriaAuditSuffix(ScholarshipApplication application)
+    {
+        if (application is null)
+        {
+            return string.Empty;
+        }
+
+        var scholarshipName = (application.ScholarshipName ?? string.Empty).Trim();
+        var comment = (application.StudentComment ?? string.Empty).Trim();
+        var isInternational = scholarshipName.Contains("[Internacional]", StringComparison.OrdinalIgnoreCase)
+            || comment.Contains("[DETALLE_BECA_INTERNACIONAL]", StringComparison.OrdinalIgnoreCase);
+
+        if (!isInternational)
+        {
+            return " Criterios validados: modalidad nacional.";
+        }
+
+        var metadata = ParseMetadataBlock(comment, "[DETALLE_BECA_INTERNACIONAL]", "[/DETALLE_BECA_INTERNACIONAL]");
+        var country = GetMetadataValue(metadata, "Pais de destino", "No informado");
+        var university = GetMetadataValue(metadata, "Universidad extranjera", "No informada");
+        var coverage = GetMetadataValue(metadata, "Cobertura", "No informada");
+        var languageOrAdmission = GetMetadataValue(metadata, "Requisitos idioma/admision", "No informado");
+
+        var builder = new StringBuilder(256);
+        builder.Append(" Criterios validados [Internacional]: ");
+        builder.Append($"Pais={country}; ");
+        builder.Append($"Universidad={university}; ");
+        builder.Append($"Cobertura={coverage}; ");
+        builder.Append($"Idioma/Admision={languageOrAdmission}.");
+        return builder.ToString();
+    }
+
+    private static Dictionary<string, string> ParseMetadataBlock(string source, string startTag, string endTag)
+    {
+        var text = source ?? string.Empty;
+        var startIndex = text.IndexOf(startTag, StringComparison.OrdinalIgnoreCase);
+        if (startIndex < 0)
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var contentStart = startIndex + startTag.Length;
+        var endIndex = text.IndexOf(endTag, contentStart, StringComparison.OrdinalIgnoreCase);
+        if (endIndex <= contentStart)
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var block = text[contentStart..endIndex];
+        var lines = block.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var line in lines)
+        {
+            var separatorIndex = line.IndexOf(':');
+            if (separatorIndex <= 0)
+            {
+                continue;
+            }
+
+            var key = line[..separatorIndex].Trim();
+            var value = line[(separatorIndex + 1)..].Trim();
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                result[key] = value;
+            }
+        }
+
+        return result;
+    }
+
+    private static string GetMetadataValue(IReadOnlyDictionary<string, string> metadata, string key, string fallback)
+    {
+        if (metadata.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        return fallback;
     }
 
     private static string BuildCommentWithMetadata(
