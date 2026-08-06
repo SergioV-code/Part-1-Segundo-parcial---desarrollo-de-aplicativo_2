@@ -30,7 +30,8 @@ public class AuthController : ControllerBase
         using var loginCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         loginCts.CancelAfter(LoginTimeout);
 
-        var authResponse = await _authService.LoginEstudianteAsync(request.Cedula, loginCts.Token);
+        var normalizedCedula = NormalizeStudentCedula(request.Cedula);
+        var authResponse = await _authService.LoginEstudianteAsync(normalizedCedula, loginCts.Token);
         if (authResponse is null)
         {
             return Unauthorized(new { error = "Cédula no encontrada." });
@@ -88,6 +89,17 @@ public class AuthController : ControllerBase
         }
 
         return normalizedRole;
+    }
+
+    private static string NormalizeStudentCedula(string cedula)
+    {
+        var raw = (cedula ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(raw)) return raw;
+
+        var digits = new string(raw.Where(char.IsDigit).ToArray());
+        if (digits.Length != 11) return raw;
+
+        return $"{digits[..3]}-{digits[3..10]}-{digits[10..]}";
     }
 
     [HttpPost("login/administrador")]
