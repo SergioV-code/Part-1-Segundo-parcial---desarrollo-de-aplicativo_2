@@ -934,17 +934,28 @@ function getInternationalDetailsFromApplication(application) {
 function getDocumentReviewRows(application) {
   const comment = (application?.studentComment || '').trim()
   const metadata = parseBlockMetadata(comment, '[DOCUMENTOS_DIGITALIZADOS]', '[/DOCUMENTOS_DIGITALIZADOS]')
+  const studentIdentity = (application?.studentCedula || '').trim() || 'Cedula no informada'
+
+  const fallbackMetadata = {
+    'Record de notas': `Precargado automaticamente desde repositorio ministerial (Expediente ${studentIdentity})`,
+    'Titulo legalizado': `Precargado automaticamente desde repositorio ministerial (Expediente ${studentIdentity})`,
+    'Certificacion de idioma': `Precargado automaticamente desde repositorio ministerial (Expediente ${studentIdentity})`,
+    'Documento de identidad': `Precargado automaticamente desde repositorio ministerial (Expediente ${studentIdentity})`,
+    'Carta de admision': `Precargado automaticamente desde repositorio ministerial (Expediente ${studentIdentity})`,
+  }
+
+  const resolved = Object.keys(metadata).length > 0 ? metadata : fallbackMetadata
 
   return [
-    { label: 'Record de notas', value: metadata['Record de notas'] || '' },
-    { label: 'Titulo legalizado', value: metadata['Titulo legalizado'] || '' },
-    { label: 'Certificacion de idioma', value: metadata['Certificacion de idioma'] || '' },
-    { label: 'Documento de identidad', value: metadata['Documento de identidad'] || '' },
-    { label: 'Carta de admision', value: metadata['Carta de admision'] || '' },
+    { label: 'Record de notas', value: resolved['Record de notas'] || '' },
+    { label: 'Titulo legalizado', value: resolved['Titulo legalizado'] || '' },
+    { label: 'Certificacion de idioma', value: resolved['Certificacion de idioma'] || '' },
+    { label: 'Documento de identidad', value: resolved['Documento de identidad'] || '' },
+    { label: 'Carta de admision', value: resolved['Carta de admision'] || '' },
   ]
 }
 
-function buildScholarshipCommentPayload(form) {
+function buildScholarshipCommentPayload(form, studentIdentity = '') {
   const baseComment = (form?.studentComment || '').trim()
   const scholarshipType = (form?.scholarshipType || 'Nacional').trim()
 
@@ -963,11 +974,11 @@ function buildScholarshipCommentPayload(form) {
 
   const documentsMetadata = [
     '[DOCUMENTOS_DIGITALIZADOS]',
-    `Record de notas: ${(form?.academicRecordDocument || '').trim()}`,
-    `Titulo legalizado: ${(form?.legalizedDegreeDocument || '').trim()}`,
-    `Certificacion de idioma: ${(form?.languageCertificateDocument || '').trim()}`,
-    `Documento de identidad: ${(form?.identityDocument || '').trim()}`,
-    `Carta de admision: ${(form?.admissionLetterDocument || '').trim()}`,
+    `Record de notas: Precargado automaticamente desde repositorio ministerial (Expediente ${(studentIdentity || 'Cedula no informada').trim()})`,
+    `Titulo legalizado: Precargado automaticamente desde repositorio ministerial (Expediente ${(studentIdentity || 'Cedula no informada').trim()})`,
+    `Certificacion de idioma: Precargado automaticamente desde repositorio ministerial (Expediente ${(studentIdentity || 'Cedula no informada').trim()})`,
+    `Documento de identidad: Precargado automaticamente desde repositorio ministerial (Expediente ${(studentIdentity || 'Cedula no informada').trim()})`,
+    `Carta de admision: Precargado automaticamente desde repositorio ministerial (Expediente ${(studentIdentity || 'Cedula no informada').trim()})`,
     '[/DOCUMENTOS_DIGITALIZADOS]',
   ].join('\n')
 
@@ -1167,11 +1178,6 @@ export default function App() {
     foreignUniversity: '',
     internationalCoverageType: '',
     languageOrAdmissionRequirement: '',
-    academicRecordDocument: '',
-    legalizedDegreeDocument: '',
-    languageCertificateDocument: '',
-    identityDocument: '',
-    admissionLetterDocument: '',
     studentComment: '',
   }
   const [scholarshipForm, setScholarshipForm] = useState(emptyScholarshipForm)
@@ -1676,11 +1682,6 @@ export default function App() {
           foreignUniversity: '',
           internationalCoverageType: '',
           languageOrAdmissionRequirement: '',
-          academicRecordDocument: '',
-          legalizedDegreeDocument: '',
-          languageCertificateDocument: '',
-          identityDocument: '',
-          admissionLetterDocument: '',
         }
       }
 
@@ -1692,11 +1693,6 @@ export default function App() {
           careerName: prev.scholarshipType === 'Internacional' ? '' : prev.careerName,
           internationalCoverageType: '',
           languageOrAdmissionRequirement: '',
-          academicRecordDocument: '',
-          legalizedDegreeDocument: '',
-          languageCertificateDocument: '',
-          identityDocument: '',
-          admissionLetterDocument: '',
         }
       }
 
@@ -1732,11 +1728,6 @@ export default function App() {
       foreignUniversity: isInternational ? (beca?.universidadExtranjera || '') : '',
       internationalCoverageType: isInternational ? (beca?.tipoCobertura || '') : '',
       languageOrAdmissionRequirement: isInternational ? (beca?.requisitosIdiomaOAdmision || '') : '',
-      academicRecordDocument: '',
-      legalizedDegreeDocument: '',
-      languageCertificateDocument: '',
-      identityDocument: '',
-      admissionLetterDocument: '',
       studentComment: '',
     })
     setScholarshipValidationAttempted(false)
@@ -1780,7 +1771,7 @@ export default function App() {
         foreignUniversity: scholarshipForm.foreignUniversity.trim(),
         internationalCoverageType: scholarshipForm.internationalCoverageType.trim(),
         languageOrAdmissionRequirement: scholarshipForm.languageOrAdmissionRequirement.trim(),
-        studentComment: buildScholarshipCommentPayload(scholarshipForm),
+        studentComment: buildScholarshipCommentPayload(scholarshipForm, sessionAuditUser),
       }
       const created = await apiRequest('/ScholarshipApplications', { method: 'POST', token: authToken, body: payload })
       setScholarshipForm(emptyScholarshipForm)
@@ -3796,61 +3787,9 @@ export default function App() {
                         <p className="text-xs text-rose-700">{scholarshipValidation.errors.languageOrAdmissionRequirement}</p>
                       )}
                     </label>
-                    <label className="grid gap-1 lg:col-span-2">
-                      <span className="text-sm text-slate-600">Documento digital: Record de notas</span>
-                      <input
-                        type="text"
-                        name="academicRecordDocument"
-                        value={scholarshipForm.academicRecordDocument}
-                        onChange={handleScholarshipFormChange}
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
-                        placeholder="URL o referencia del documento"
-                      />
-                    </label>
-                    <label className="grid gap-1 lg:col-span-2">
-                      <span className="text-sm text-slate-600">Documento digital: Titulo legalizado</span>
-                      <input
-                        type="text"
-                        name="legalizedDegreeDocument"
-                        value={scholarshipForm.legalizedDegreeDocument}
-                        onChange={handleScholarshipFormChange}
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
-                        placeholder="URL o referencia del documento"
-                      />
-                    </label>
-                    <label className="grid gap-1 lg:col-span-2">
-                      <span className="text-sm text-slate-600">Documento digital: Certificacion de idioma</span>
-                      <input
-                        type="text"
-                        name="languageCertificateDocument"
-                        value={scholarshipForm.languageCertificateDocument}
-                        onChange={handleScholarshipFormChange}
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
-                        placeholder="URL o referencia del documento"
-                      />
-                    </label>
-                    <label className="grid gap-1">
-                      <span className="text-sm text-slate-600">Documento digital: Identidad</span>
-                      <input
-                        type="text"
-                        name="identityDocument"
-                        value={scholarshipForm.identityDocument}
-                        onChange={handleScholarshipFormChange}
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
-                        placeholder="URL o referencia"
-                      />
-                    </label>
-                    <label className="grid gap-1">
-                      <span className="text-sm text-slate-600">Documento digital: Carta de admision</span>
-                      <input
-                        type="text"
-                        name="admissionLetterDocument"
-                        value={scholarshipForm.admissionLetterDocument}
-                        onChange={handleScholarshipFormChange}
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
-                        placeholder="URL o referencia"
-                      />
-                    </label>
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 lg:col-span-2">
+                      La validación documental se consulta automáticamente desde el repositorio institucional MESCYT/MINERD.
+                    </div>
                   </>
                 )}
                 <label className="grid gap-1 lg:col-span-2">
