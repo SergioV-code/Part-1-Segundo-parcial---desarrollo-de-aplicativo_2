@@ -36,7 +36,8 @@ public class AuthService : IAuthService
     public async Task<AuthResponseDto?> LoginEstudianteAsync(string cedula, CancellationToken cancellationToken = default)
     {
         var normalizedCedula = (cedula ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(normalizedCedula))
+        var normalizedCedulaDigits = NormalizeCedulaDigits(normalizedCedula);
+        if (string.IsNullOrWhiteSpace(normalizedCedula) && string.IsNullOrWhiteSpace(normalizedCedulaDigits))
         {
             return null;
         }
@@ -45,22 +46,26 @@ public class AuthService : IAuthService
         {
             var student = await _context.Students
                 .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Cedula == normalizedCedula, cancellationToken);
+                .FirstOrDefaultAsync(
+                    x => x.Cedula == normalizedCedula
+                        || (x.Cedula != null && x.Cedula.Replace("-", string.Empty) == normalizedCedulaDigits),
+                    cancellationToken);
 
             if (student is null)
             {
-                return TryFallbackStudentLogin(normalizedCedula);
+                return TryFallbackStudentLogin(normalizedCedula, normalizedCedulaDigits);
             }
 
             var user = await _context.Users.FirstOrDefaultAsync(
-                x => x.Cedula == normalizedCedula && x.Rol == SystemRoles.Estudiante,
+                x => (x.Cedula == normalizedCedula || (x.Cedula != null && x.Cedula.Replace("-", string.Empty) == normalizedCedulaDigits))
+                    && x.Rol == SystemRoles.Estudiante,
                 cancellationToken);
 
             if (user is null)
             {
                 user = new User
                 {
-                    Cedula = normalizedCedula,
+                    Cedula = student.Cedula,
                     NombreCompleto = student.Nombre,
                     Rol = SystemRoles.Estudiante,
                     Activo = true
@@ -88,15 +93,15 @@ public class AuthService : IAuthService
         }
         catch (SqlException)
         {
-            return TryFallbackStudentLogin(normalizedCedula);
+            return TryFallbackStudentLogin(normalizedCedula, normalizedCedulaDigits);
         }
         catch (DbUpdateException)
         {
-            return TryFallbackStudentLogin(normalizedCedula);
+            return TryFallbackStudentLogin(normalizedCedula, normalizedCedulaDigits);
         }
         catch
         {
-            return TryFallbackStudentLogin(normalizedCedula);
+            return TryFallbackStudentLogin(normalizedCedula, normalizedCedulaDigits);
         }
     }
 
@@ -279,7 +284,7 @@ public class AuthService : IAuthService
         return BuildToken("fallback-admin", "Administrador EDUMETRICS", SystemRoles.Administrador, null, adminEmail);
     }
 
-    private AuthResponseDto? TryFallbackStudentLogin(string cedula)
+    private AuthResponseDto? TryFallbackStudentLogin(string cedula, string cedulaDigits)
     {
         var knownCedulas = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -305,17 +310,27 @@ public class AuthService : IAuthService
             "001-0000020-0",
         };
 
-        if (!knownCedulas.Contains(cedula))
+        var canonicalCedula = knownCedulas.FirstOrDefault(x =>
+            string.Equals(x, cedula, StringComparison.OrdinalIgnoreCase)
+            || NormalizeCedulaDigits(x) == cedulaDigits);
+
+        if (string.IsNullOrWhiteSpace(canonicalCedula))
         {
             return null;
         }
 
         return BuildToken(
-            $"fallback-student-{cedula}",
-            $"Estudiante {cedula}",
+            $"fallback-student-{canonicalCedula}",
+            $"Estudiante {canonicalCedula}",
             SystemRoles.Estudiante,
-            cedula,
+            canonicalCedula,
             null);
+    }
+
+    private static string NormalizeCedulaDigits(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        return new string(value.Where(char.IsDigit).ToArray());
     }
 
     private static bool IsAnalystRole(string role)
