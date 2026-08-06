@@ -24,7 +24,8 @@ public class ScholarshipApplicationService : IScholarshipApplicationService
         }
 
         var normalizedCedula = (studentCedula ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(normalizedCedula))
+        var normalizedCedulaDigits = NormalizeCedulaDigits(normalizedCedula);
+        if (string.IsNullOrWhiteSpace(normalizedCedula) && string.IsNullOrWhiteSpace(normalizedCedulaDigits))
         {
             throw new InvalidOperationException("No se pudo identificar la cédula del estudiante autenticado.");
         }
@@ -98,7 +99,10 @@ public class ScholarshipApplicationService : IScholarshipApplicationService
 
         var student = await _context.Students
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Cedula == normalizedCedula, cancellationToken);
+            .FirstOrDefaultAsync(x =>
+                x.Cedula == normalizedCedula
+                || x.Cedula.Replace("-", string.Empty) == normalizedCedulaDigits,
+                cancellationToken);
 
         if (student is null)
         {
@@ -145,10 +149,13 @@ public class ScholarshipApplicationService : IScholarshipApplicationService
     public async Task<IReadOnlyList<ScholarshipApplicationDto>> GetMineAsync(string studentCedula, CancellationToken cancellationToken = default)
     {
         var normalizedCedula = (studentCedula ?? string.Empty).Trim();
+        var normalizedCedulaDigits = NormalizeCedulaDigits(normalizedCedula);
         return await _context.ScholarshipApplications
             .AsNoTracking()
             .Include(x => x.History.OrderByDescending(h => h.CreatedAtUtc))
-            .Where(x => x.StudentCedula == normalizedCedula)
+            .Where(x =>
+                x.StudentCedula == normalizedCedula
+                || x.StudentCedula.Replace("-", string.Empty) == normalizedCedulaDigits)
             .OrderByDescending(x => x.SubmittedAtUtc)
             .Select(MapToDtoExpression())
             .ToListAsync(cancellationToken);
@@ -373,6 +380,13 @@ public class ScholarshipApplicationService : IScholarshipApplicationService
         }
 
         return string.Join("\n\n", new[] { studentComment, metadata }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private static string NormalizeCedulaDigits(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        var chars = value.Where(char.IsDigit).ToArray();
+        return new string(chars);
     }
 
     private static System.Linq.Expressions.Expression<Func<ScholarshipApplication, ScholarshipApplicationDto>> MapToDtoExpression()
