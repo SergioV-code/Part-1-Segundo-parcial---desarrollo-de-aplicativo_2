@@ -161,6 +161,53 @@ const TAB_BECAS  = 'Oportunidades y Becas'
 const STU_TABS   = [TAB_PERFIL, TAB_PENSUM, TAB_BECAS]
 const TRACEABILITY_EMAIL = 'sergiovargasdiaz316@gmail.com'
 
+const VERIFIED_INTERNATIONAL_AGREEMENTS = [
+  {
+    id: 'es-ucm-sis-ciber',
+    country: 'Espana',
+    foreignUniversity: 'Universidad Complutense de Madrid',
+    institutionName: 'MESCYT/MINERD',
+    careerName: 'Ingenieria en Sistemas y Ciberseguridad',
+    coverageType: 'Matricula completa, estipendio mensual de manutencion, pasaje aereo y seguro medico integral',
+    languageOrAdmissionRequirement: 'Indice minimo de 80, titulacion legalizada, dominio de espanol C1 y carta de admision definitiva',
+    sourceLabel: 'Convenio oficial MESCYT/MINERD',
+    url: 'https://mescyt.gob.do',
+  },
+  {
+    id: 'es-ugr-sis-ciber',
+    country: 'Espana',
+    foreignUniversity: 'Universidad de Granada',
+    institutionName: 'MESCYT/MINERD',
+    careerName: 'Ingenieria en Sistemas y Ciberseguridad',
+    coverageType: 'Matricula completa, estipendio mensual de manutencion, pasaje aereo y seguro medico integral',
+    languageOrAdmissionRequirement: 'Indice minimo de 80, titulacion legalizada, dominio de espanol C1 y carta de admision definitiva',
+    sourceLabel: 'Convenio oficial MESCYT/MINERD',
+    url: 'https://mescyt.gob.do',
+  },
+  {
+    id: 'ca-utoronto-software',
+    country: 'Canada',
+    foreignUniversity: 'University of Toronto',
+    institutionName: 'MESCYT/MINERD',
+    careerName: 'Ingenieria de Software Avanzada',
+    coverageType: 'Matricula parcial o total, estipendio, pasaje y seguro medico',
+    languageOrAdmissionRequirement: 'Indice minimo de 88, IELTS 6.5 minimo (o TOEFL) y carta de aceptacion condicional o definitiva',
+    sourceLabel: 'Convenio oficial MESCYT/MINERD',
+    url: 'https://mescyt.gob.do',
+  },
+  {
+    id: 'ca-ubc-software',
+    country: 'Canada',
+    foreignUniversity: 'University of British Columbia',
+    institutionName: 'MESCYT/MINERD',
+    careerName: 'Ingenieria de Software Avanzada',
+    coverageType: 'Matricula parcial o total, estipendio, pasaje y seguro medico',
+    languageOrAdmissionRequirement: 'Indice minimo de 88, IELTS 6.5 minimo (o TOEFL) y carta de aceptacion condicional o definitiva',
+    sourceLabel: 'Convenio oficial MESCYT/MINERD',
+    url: 'https://mescyt.gob.do',
+  },
+]
+
 const ROLES = ['Analista MESCYT/MINERD', 'Estudiante', 'Administrador']
 const ROL_COLORS = {
   'Analista MESCYT/MINERD': { bg: '#0f3a7a', badge: 'bg-blue-100 text-blue-900' },
@@ -248,36 +295,23 @@ function buildScholarshipCards(carrera = '', ies = '') {
       color: 'border-amber-300 bg-amber-50',
       badge: 'bg-amber-100 text-amber-800',
     },
-    {
-      nombre: `Beca Internacional de Excelencia - ${carreraTexto || 'Carrera'}`,
+    ...VERIFIED_INTERNATIONAL_AGREEMENTS.map((agreement, index) => ({
+      nombre: `Beca Internacional ${agreement.country} - ${agreement.foreignUniversity}`,
       modalidad: 'Internacional',
-      entidad: 'MESCYT/MINERD',
-      monto: 'Cobertura integral según convocatoria internacional',
-      requisito: 'Excelencia académica, expediente disciplinario limpio y cumplimiento de requisitos de admisión internacional',
-      cierre: '2026-11-15',
-      url: 'https://mescyt.gob.do',
-      color: 'border-fuchsia-300 bg-fuchsia-50',
-      badge: 'bg-fuchsia-100 text-fuchsia-800',
-      destinoPais: 'España',
-      universidadExtranjera: 'Universidad Complutense de Madrid',
-      tipoCobertura: 'Matrícula, estipendio de manutención, pasaje aéreo y seguro médico',
-      requisitosIdiomaOAdmision: 'Español C1 o carta de admisión definitiva',
-    },
-    {
-      nombre: `Beca Internacional de Investigación - ${carreraTexto || 'Carrera'}`,
-      modalidad: 'Internacional',
-      entidad: 'MESCYT/MINERD',
-      monto: 'Cobertura parcial con apoyo de investigación y movilidad',
-      requisito: 'Promedio mínimo 88, propuesta de investigación y aval académico institucional',
-      cierre: '2026-12-05',
-      url: 'https://mescyt.gob.do',
-      color: 'border-sky-300 bg-sky-50',
-      badge: 'bg-sky-100 text-sky-800',
-      destinoPais: 'Canadá',
-      universidadExtranjera: 'University of Toronto',
-      tipoCobertura: 'Matrícula parcial, estipendio de manutención, pasaje aéreo y seguro médico',
-      requisitosIdiomaOAdmision: 'IELTS 6.5+ o admisión condicional aceptada por la universidad',
-    },
+      entidad: agreement.institutionName,
+      monto: agreement.coverageType,
+      requisito: agreement.languageOrAdmissionRequirement,
+      cierre: agreement.country === 'Espana' ? '2026-11-15' : '2026-12-05',
+      url: agreement.url,
+      color: index % 2 === 0 ? 'border-fuchsia-300 bg-fuchsia-50' : 'border-sky-300 bg-sky-50',
+      badge: index % 2 === 0 ? 'bg-fuchsia-100 text-fuchsia-800' : 'bg-sky-100 text-sky-800',
+      destinoPais: agreement.country,
+      universidadExtranjera: agreement.foreignUniversity,
+      tipoCobertura: agreement.coverageType,
+      requisitosIdiomaOAdmision: agreement.languageOrAdmissionRequirement,
+      carreraPrograma: agreement.careerName,
+      convenioOficial: agreement.sourceLabel,
+    })),
   ]
 
   const institutionalMatches = []
@@ -613,42 +647,74 @@ function validateAccessUserForm(form, isEditing) {
 }
 
 function validateScholarshipRequestForm(form) {
+  const requiredErrors = {}
   const scholarshipType = (form.scholarshipType || 'Nacional').trim()
   const institutionName = (form.institutionName || '').trim()
   const careerName = (form.careerName || '').trim()
+  const studentComment = (form.studentComment || '').trim()
+
+  if (!scholarshipType) {
+    requiredErrors.scholarshipType = 'La modalidad de beca es obligatoria.'
+  }
 
   if (institutionName.length < 3) {
-    return 'La institución de la beca es obligatoria.'
+    requiredErrors.institutionName = 'La institución de la beca es obligatoria.'
   }
 
   if (careerName.length < 3) {
-    return 'La carrera a la que postula es obligatoria.'
+    requiredErrors.careerName = 'La carrera o programa es obligatoria.'
   }
 
-  if (scholarshipType === 'Internacional') {
-    const destinationCountry = (form.destinationCountry || '').trim()
-    const foreignUniversity = (form.foreignUniversity || '').trim()
-    const internationalCoverageType = (form.internationalCoverageType || '').trim()
-    const languageOrAdmissionRequirement = (form.languageOrAdmissionRequirement || '').trim()
+  if (studentComment.length < 5) {
+    requiredErrors.studentComment = 'El comentario del estudiante es obligatorio.'
+  }
 
+  const destinationCountry = (form.destinationCountry || '').trim()
+  const foreignUniversity = (form.foreignUniversity || '').trim()
+  const internationalCoverageType = (form.internationalCoverageType || '').trim()
+  const languageOrAdmissionRequirement = (form.languageOrAdmissionRequirement || '').trim()
+
+  if (scholarshipType === 'Internacional') {
     if (destinationCountry.length < 2) {
-      return 'Para beca internacional debe indicar el país de destino.'
+      requiredErrors.destinationCountry = 'Para beca internacional debe indicar el país de destino.'
     }
 
     if (foreignUniversity.length < 3) {
-      return 'Para beca internacional debe indicar la universidad extranjera.'
+      requiredErrors.foreignUniversity = 'Para beca internacional debe indicar la universidad extranjera.'
     }
 
     if (internationalCoverageType.length < 5) {
-      return 'Para beca internacional debe indicar el tipo de cobertura.'
+      requiredErrors.internationalCoverageType = 'Para beca internacional debe indicar el tipo de cobertura.'
     }
 
     if (languageOrAdmissionRequirement.length < 5) {
-      return 'Para beca internacional debe indicar los requisitos de idioma o admisión.'
+      requiredErrors.languageOrAdmissionRequirement = 'Para beca internacional debe indicar los requisitos de idioma o admisión.'
+    }
+
+    const hasOfficialAgreement = VERIFIED_INTERNATIONAL_AGREEMENTS.some(agreement =>
+      agreement.country === destinationCountry
+      && agreement.foreignUniversity === foreignUniversity
+      && agreement.careerName === careerName,
+    )
+
+    if (!hasOfficialAgreement) {
+      requiredErrors.foreignUniversity = 'Debes seleccionar una combinación oficial MESCYT/MINERD verificada para beca internacional.'
     }
   }
 
-  return ''
+  const keys = Object.keys(requiredErrors)
+  return {
+    isValid: keys.length === 0,
+    errors: requiredErrors,
+    firstError: keys.length > 0 ? requiredErrors[keys[0]] : '',
+  }
+}
+
+function isScholarshipFieldInvalid(validation, form, attempted, fieldName) {
+  const hasError = Boolean(validation?.errors?.[fieldName])
+  if (!hasError) return false
+  const value = form?.[fieldName]
+  return attempted || (typeof value === 'string' ? value.trim().length > 0 : Boolean(value))
 }
 
 function getAutoScholarshipName(form) {
@@ -882,8 +948,37 @@ export default function App() {
   const [scholarshipLoading, setScholarshipLoading] = useState(false)
   const [scholarshipError, setScholarshipError] = useState('')
   const [scholarshipActionId, setScholarshipActionId] = useState('')
+  const [scholarshipValidationAttempted, setScholarshipValidationAttempted] = useState(false)
   const [analysisDrafts, setAnalysisDrafts] = useState({})
   const [rejectionModal, setRejectionModal] = useState({ open: false, application: null, reason: '', error: '' })
+  const scholarshipValidation = useMemo(() => validateScholarshipRequestForm(scholarshipForm), [scholarshipForm])
+  const internationalCountryOptions = useMemo(
+    () => Array.from(new Set(VERIFIED_INTERNATIONAL_AGREEMENTS.map(item => item.country))),
+    [],
+  )
+  const internationalUniversityOptions = useMemo(
+    () => Array.from(new Set(
+      VERIFIED_INTERNATIONAL_AGREEMENTS
+        .filter(item => item.country === (scholarshipForm.destinationCountry || '').trim())
+        .map(item => item.foreignUniversity),
+    )),
+    [scholarshipForm.destinationCountry],
+  )
+  const internationalCareerOptions = useMemo(
+    () => Array.from(new Set(
+      VERIFIED_INTERNATIONAL_AGREEMENTS
+        .filter(item => {
+          const country = (scholarshipForm.destinationCountry || '').trim()
+          const university = (scholarshipForm.foreignUniversity || '').trim()
+          if (!country && !university) return true
+          if (country && !university) return item.country === country
+          if (!country && university) return item.foreignUniversity === university
+          return item.country === country && item.foreignUniversity === university
+        })
+        .map(item => item.careerName),
+    )),
+    [scholarshipForm.destinationCountry, scholarshipForm.foreignUniversity],
+  )
 
   // ── Auditoría helper ────────────────────────────────────────────────────────
   const pushAudit = useCallback((accion, detalles, rol, usuario) =>
@@ -1305,6 +1400,7 @@ export default function App() {
     setScholarshipLoading(false)
     setScholarshipError('')
     setScholarshipActionId('')
+    setScholarshipValidationAttempted(false)
     setAnalysisDrafts({})
     setRejectionModal({ open: false, application: null, reason: '', error: '' })
     setUsersError('')
@@ -1330,7 +1426,34 @@ export default function App() {
         }
       }
 
-      return { ...prev, [name]: value }
+      if (name === 'destinationCountry') {
+        return {
+          ...prev,
+          destinationCountry: value,
+          foreignUniversity: '',
+          careerName: prev.scholarshipType === 'Internacional' ? '' : prev.careerName,
+          internationalCoverageType: '',
+          languageOrAdmissionRequirement: '',
+        }
+      }
+
+      const next = { ...prev, [name]: value }
+
+      if (next.scholarshipType === 'Internacional') {
+        const match = VERIFIED_INTERNATIONAL_AGREEMENTS.find(agreement =>
+          agreement.country === (next.destinationCountry || '').trim()
+          && agreement.foreignUniversity === (next.foreignUniversity || '').trim()
+          && agreement.careerName === (next.careerName || '').trim(),
+        )
+
+        if (match) {
+          next.institutionName = match.institutionName
+          next.internationalCoverageType = match.coverageType
+          next.languageOrAdmissionRequirement = match.languageOrAdmissionRequirement
+        }
+      }
+
+      return next
     })
     setScholarshipFormError('')
   }
@@ -1341,13 +1464,14 @@ export default function App() {
       scholarshipName: beca?.nombre || '',
       scholarshipType: isInternational ? 'Internacional' : 'Nacional',
       institutionName: beca?.entidad || '',
-      careerName: scholarshipForm.careerName || '',
+      careerName: beca?.carreraPrograma || scholarshipForm.careerName || '',
       destinationCountry: isInternational ? (beca?.destinoPais || '') : '',
       foreignUniversity: isInternational ? (beca?.universidadExtranjera || '') : '',
       internationalCoverageType: isInternational ? (beca?.tipoCobertura || '') : '',
       languageOrAdmissionRequirement: isInternational ? (beca?.requisitosIdiomaOAdmision || '') : '',
       studentComment: '',
     })
+    setScholarshipValidationAttempted(false)
     setScholarshipFormError('')
     setScholarshipSuccess('')
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -1366,9 +1490,9 @@ export default function App() {
 
   const handleScholarshipSubmit = async e => {
     e.preventDefault()
-    const validationError = validateScholarshipRequestForm(scholarshipForm)
-    if (validationError) {
-      setScholarshipFormError(validationError)
+    setScholarshipValidationAttempted(true)
+    if (!scholarshipValidation.isValid) {
+      setScholarshipFormError(scholarshipValidation.firstError || 'Completa todos los campos obligatorios para continuar.')
       return
     }
 
@@ -1381,12 +1505,18 @@ export default function App() {
         scholarshipName: scholarshipForm.scholarshipType === 'Internacional'
           ? `[Internacional] ${resolvedScholarshipName}`
           : resolvedScholarshipName,
+        scholarshipType: scholarshipForm.scholarshipType,
         institutionName: scholarshipForm.institutionName.trim(),
         careerName: scholarshipForm.careerName.trim(),
+        destinationCountry: scholarshipForm.destinationCountry.trim(),
+        foreignUniversity: scholarshipForm.foreignUniversity.trim(),
+        internationalCoverageType: scholarshipForm.internationalCoverageType.trim(),
+        languageOrAdmissionRequirement: scholarshipForm.languageOrAdmissionRequirement.trim(),
         studentComment: buildScholarshipCommentPayload(scholarshipForm),
       }
       const created = await apiRequest('/ScholarshipApplications', { method: 'POST', token: authToken, body: payload })
       setScholarshipForm(emptyScholarshipForm)
+      setScholarshipValidationAttempted(false)
       setScholarshipSuccess(`Solicitud enviada con estado ${created?.status || 'Pendiente'} y notificación visual dirigida a ${TRACEABILITY_EMAIL}.`)
       pushAudit(
         'CREAR_SOLICITUD_BECA',
@@ -3151,26 +3281,32 @@ export default function App() {
 
               <form onSubmit={handleScholarshipSubmit} className="grid gap-3 lg:grid-cols-2" noValidate>
                 <label className="grid gap-1 lg:col-span-2">
-                  <span className="text-sm text-slate-600">Modalidad de beca</span>
+                  <span className="text-sm text-slate-600">Modalidad de beca *</span>
                   <select
                     name="scholarshipType"
                     value={scholarshipForm.scholarshipType}
                     onChange={handleScholarshipFormChange}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                    aria-invalid={isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'scholarshipType')}
+                    className={`rounded-lg border px-3 py-2 text-sm focus:border-violet-500 focus:outline-none ${isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'scholarshipType') ? 'border-rose-500 bg-rose-50' : 'border-slate-300'}`}
                   >
                     <option value="Nacional">Nacional</option>
                     <option value="Internacional">Internacional</option>
                   </select>
+                  {isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'scholarshipType') && (
+                    <p className="text-xs text-rose-700">{scholarshipValidation.errors.scholarshipType}</p>
+                  )}
                 </label>
                 <label className="grid gap-1">
-                  <span className="text-sm text-slate-600">Institución de Educación Superior</span>
+                  <span className="text-sm text-slate-600">Institución de Educación Superior o entidad gestora *</span>
                   <select
                     name="institutionName"
                     value={scholarshipForm.institutionName}
                     onChange={handleScholarshipFormChange}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                    aria-invalid={isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'institutionName')}
+                    className={`rounded-lg border px-3 py-2 text-sm focus:border-violet-500 focus:outline-none ${isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'institutionName') ? 'border-rose-500 bg-rose-50' : 'border-slate-300'}`}
                   >
                     <option value="">Seleccione una IES</option>
+                    {scholarshipForm.scholarshipType === 'Internacional' && <option value="MESCYT/MINERD">MESCYT/MINERD</option>}
                     <option value="UASD">UASD</option>
                     <option value="PUCMM">PUCMM</option>
                     <option value="ITLA">ITLA</option>
@@ -3180,95 +3316,141 @@ export default function App() {
                     <option value="ITSC">ITSC</option>
                     <option value="MESCYT/MINERD">MESCYT/MINERD</option>
                   </select>
+                  {isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'institutionName') && (
+                    <p className="text-xs text-rose-700">{scholarshipValidation.errors.institutionName}</p>
+                  )}
                 </label>
                 <label className="grid gap-1">
-                  <span className="text-sm text-slate-600">Carrera o programa</span>
+                  <span className="text-sm text-slate-600">Carrera o programa *</span>
                   <select
                     name="careerName"
                     value={scholarshipForm.careerName}
                     onChange={handleScholarshipFormChange}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                    aria-invalid={isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'careerName')}
+                    className={`rounded-lg border px-3 py-2 text-sm focus:border-violet-500 focus:outline-none ${isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'careerName') ? 'border-rose-500 bg-rose-50' : 'border-slate-300'}`}
                   >
                     <option value="">Seleccione una carrera</option>
-                    <option value="Ingeniería en Sistemas">Ingeniería en Sistemas</option>
-                    <option value="Administración de Empresas">Administración de Empresas</option>
-                    <option value="Contabilidad y Finanzas">Contabilidad y Finanzas</option>
-                    <option value="Ingeniería Industrial">Ingeniería Industrial</option>
-                    <option value="Derecho">Derecho</option>
-                    <option value="Medicina">Medicina</option>
-                    <option value="Psicología">Psicología</option>
-                    <option value="Educación">Educación</option>
+                    {scholarshipForm.scholarshipType === 'Internacional' ? (
+                      internationalCareerOptions.map(career => (
+                        <option key={career} value={career}>{career}</option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="Ingeniería en Sistemas">Ingeniería en Sistemas</option>
+                        <option value="Administración de Empresas">Administración de Empresas</option>
+                        <option value="Contabilidad y Finanzas">Contabilidad y Finanzas</option>
+                        <option value="Ingeniería Industrial">Ingeniería Industrial</option>
+                        <option value="Derecho">Derecho</option>
+                        <option value="Medicina">Medicina</option>
+                        <option value="Psicología">Psicología</option>
+                        <option value="Educación">Educación</option>
+                      </>
+                    )}
                   </select>
+                  {isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'careerName') && (
+                    <p className="text-xs text-rose-700">{scholarshipValidation.errors.careerName}</p>
+                  )}
                 </label>
                 {scholarshipForm.scholarshipType === 'Internacional' && (
                   <>
                     <label className="grid gap-1">
-                      <span className="text-sm text-slate-600">País de destino</span>
-                      <input
-                        type="text"
+                      <span className="text-sm text-slate-600">País de destino *</span>
+                      <select
                         name="destinationCountry"
                         value={scholarshipForm.destinationCountry}
                         onChange={handleScholarshipFormChange}
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
-                        placeholder="Ej: España"
-                      />
+                        aria-invalid={isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'destinationCountry')}
+                        className={`rounded-lg border px-3 py-2 text-sm focus:border-violet-500 focus:outline-none ${isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'destinationCountry') ? 'border-rose-500 bg-rose-50' : 'border-slate-300'}`}
+                      >
+                        <option value="">Seleccione país</option>
+                        {internationalCountryOptions.map(country => (
+                          <option key={country} value={country}>{country}</option>
+                        ))}
+                      </select>
+                      {isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'destinationCountry') && (
+                        <p className="text-xs text-rose-700">{scholarshipValidation.errors.destinationCountry}</p>
+                      )}
                     </label>
                     <label className="grid gap-1">
-                      <span className="text-sm text-slate-600">Universidad extranjera</span>
-                      <input
-                        type="text"
+                      <span className="text-sm text-slate-600">Universidad extranjera *</span>
+                      <select
                         name="foreignUniversity"
                         value={scholarshipForm.foreignUniversity}
                         onChange={handleScholarshipFormChange}
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
-                        placeholder="Ej: University of Toronto"
-                      />
+                        aria-invalid={isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'foreignUniversity')}
+                        className={`rounded-lg border px-3 py-2 text-sm focus:border-violet-500 focus:outline-none ${isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'foreignUniversity') ? 'border-rose-500 bg-rose-50' : 'border-slate-300'}`}
+                      >
+                        <option value="">Seleccione universidad extranjera</option>
+                        {internationalUniversityOptions.map(university => (
+                          <option key={university} value={university}>{university}</option>
+                        ))}
+                      </select>
+                      {isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'foreignUniversity') && (
+                        <p className="text-xs text-rose-700">{scholarshipValidation.errors.foreignUniversity}</p>
+                      )}
                     </label>
                     <label className="grid gap-1 lg:col-span-2">
-                      <span className="text-sm text-slate-600">Tipo de cobertura</span>
+                      <span className="text-sm text-slate-600">Tipo de cobertura *</span>
                       <input
                         type="text"
                         name="internationalCoverageType"
                         value={scholarshipForm.internationalCoverageType}
                         onChange={handleScholarshipFormChange}
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                        readOnly
+                        aria-invalid={isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'internationalCoverageType')}
+                        className={`rounded-lg border px-3 py-2 text-sm focus:border-violet-500 focus:outline-none ${isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'internationalCoverageType') ? 'border-rose-500 bg-rose-50' : 'border-slate-300 bg-slate-50'}`}
                         placeholder="Matrícula, estipendio de manutención, pasaje aéreo y seguro médico"
                       />
+                      {isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'internationalCoverageType') && (
+                        <p className="text-xs text-rose-700">{scholarshipValidation.errors.internationalCoverageType}</p>
+                      )}
                     </label>
                     <label className="grid gap-1 lg:col-span-2">
-                      <span className="text-sm text-slate-600">Requisitos de idioma o admisión</span>
+                      <span className="text-sm text-slate-600">Requisitos de idioma/admisión *</span>
                       <input
                         type="text"
                         name="languageOrAdmissionRequirement"
                         value={scholarshipForm.languageOrAdmissionRequirement}
                         onChange={handleScholarshipFormChange}
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                        readOnly
+                        aria-invalid={isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'languageOrAdmissionRequirement')}
+                        className={`rounded-lg border px-3 py-2 text-sm focus:border-violet-500 focus:outline-none ${isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'languageOrAdmissionRequirement') ? 'border-rose-500 bg-rose-50' : 'border-slate-300 bg-slate-50'}`}
                         placeholder="Ej: IELTS 6.5+ o carta de admisión"
                       />
+                      {isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'languageOrAdmissionRequirement') && (
+                        <p className="text-xs text-rose-700">{scholarshipValidation.errors.languageOrAdmissionRequirement}</p>
+                      )}
                     </label>
                   </>
                 )}
                 <label className="grid gap-1 lg:col-span-2">
-                  <span className="text-sm text-slate-600">Comentario del estudiante</span>
+                  <span className="text-sm text-slate-600">Comentario del estudiante *</span>
                   <textarea
                     name="studentComment"
                     rows="3"
                     value={scholarshipForm.studentComment}
                     onChange={handleScholarshipFormChange}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                    aria-invalid={isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'studentComment')}
+                    className={`rounded-lg border px-3 py-2 text-sm focus:border-violet-500 focus:outline-none ${isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'studentComment') ? 'border-rose-500 bg-rose-50' : 'border-slate-300'}`}
                     placeholder="Describe brevemente por qué solicitas la beca."
                   />
+                  {isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'studentComment') && (
+                    <p className="text-xs text-rose-700">{scholarshipValidation.errors.studentComment}</p>
+                  )}
                 </label>
                 <div className="flex flex-wrap items-center gap-3 lg:col-span-2">
                   <button
                     type="submit"
-                    disabled={scholarshipActionId === 'create-scholarship-request' || contingencyMode}
+                    disabled={scholarshipActionId === 'create-scholarship-request' || contingencyMode || !scholarshipValidation.isValid}
                     className="inline-flex items-center gap-2 rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:bg-violet-400"
                   >
                     {scholarshipActionId === 'create-scholarship-request' && <InlineSpinner className="border-white/50 border-t-white" />}
                     Solicitar Beca
                   </button>
                   <span className="text-xs text-slate-500">Notificación visible: {TRACEABILITY_EMAIL}</span>
+                  {!scholarshipValidation.isValid && (
+                    <span className="text-xs text-rose-700">Completa todos los campos obligatorios para habilitar el envío.</span>
+                  )}
                 </div>
               </form>
 
@@ -3384,6 +3566,7 @@ export default function App() {
                       <p><span className="font-medium text-slate-700">Requisito:</span> {beca.requisito}</p>
                       {beca.modalidad === 'Internacional' && (
                         <>
+                          <p><span className="font-medium text-slate-700">Fuente:</span> {beca.convenioOficial || 'Convenio oficial MESCYT/MINERD'}</p>
                           <p><span className="font-medium text-slate-700">País de destino:</span> {beca.destinoPais}</p>
                           <p><span className="font-medium text-slate-700">Universidad extranjera:</span> {beca.universidadExtranjera}</p>
                           <p><span className="font-medium text-slate-700">Cobertura:</span> {beca.tipoCobertura}</p>

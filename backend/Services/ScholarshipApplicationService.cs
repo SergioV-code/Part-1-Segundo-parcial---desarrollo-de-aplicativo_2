@@ -18,11 +18,83 @@ public class ScholarshipApplicationService : IScholarshipApplicationService
 
     public async Task<ScholarshipApplicationDto> CreateAsync(string studentCedula, CreateScholarshipApplicationRequest request, CancellationToken cancellationToken = default)
     {
+        if (request is null)
+        {
+            throw new InvalidOperationException("La solicitud de beca es obligatoria.");
+        }
+
         var normalizedCedula = (studentCedula ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(normalizedCedula))
         {
             throw new InvalidOperationException("No se pudo identificar la cédula del estudiante autenticado.");
         }
+
+        var scholarshipType = (request.ScholarshipType ?? "Nacional").Trim();
+        var institutionName = (request.InstitutionName ?? string.Empty).Trim();
+        var scholarshipName = (request.ScholarshipName ?? string.Empty).Trim();
+        var careerName = (request.CareerName ?? string.Empty).Trim();
+        var destinationCountry = (request.DestinationCountry ?? string.Empty).Trim();
+        var foreignUniversity = (request.ForeignUniversity ?? string.Empty).Trim();
+        var internationalCoverageType = (request.InternationalCoverageType ?? string.Empty).Trim();
+        var languageOrAdmissionRequirement = (request.LanguageOrAdmissionRequirement ?? string.Empty).Trim();
+        var studentComment = (request.StudentComment ?? string.Empty).Trim();
+
+        if (string.IsNullOrWhiteSpace(scholarshipType))
+        {
+            throw new InvalidOperationException("La modalidad de beca es obligatoria.");
+        }
+
+        if (string.IsNullOrWhiteSpace(institutionName))
+        {
+            throw new InvalidOperationException("La institución gestora es obligatoria.");
+        }
+
+        if (string.IsNullOrWhiteSpace(scholarshipName))
+        {
+            throw new InvalidOperationException("El nombre de la beca es obligatorio.");
+        }
+
+        if (string.IsNullOrWhiteSpace(careerName))
+        {
+            throw new InvalidOperationException("La carrera o programa es obligatoria.");
+        }
+
+        if (string.IsNullOrWhiteSpace(studentComment))
+        {
+            throw new InvalidOperationException("El comentario del estudiante es obligatorio.");
+        }
+
+        var isInternational = string.Equals(scholarshipType, "Internacional", StringComparison.OrdinalIgnoreCase);
+        if (isInternational)
+        {
+            if (string.IsNullOrWhiteSpace(destinationCountry))
+            {
+                throw new InvalidOperationException("Para beca internacional debe indicar el país de destino.");
+            }
+
+            if (string.IsNullOrWhiteSpace(foreignUniversity))
+            {
+                throw new InvalidOperationException("Para beca internacional debe indicar la universidad extranjera.");
+            }
+
+            if (string.IsNullOrWhiteSpace(internationalCoverageType))
+            {
+                throw new InvalidOperationException("Para beca internacional debe indicar el tipo de cobertura.");
+            }
+
+            if (string.IsNullOrWhiteSpace(languageOrAdmissionRequirement))
+            {
+                throw new InvalidOperationException("Para beca internacional debe indicar los requisitos de idioma o admisión.");
+            }
+        }
+
+        var commentWithMetadata = BuildCommentWithMetadata(
+            studentComment,
+            scholarshipType,
+            destinationCountry,
+            foreignUniversity,
+            internationalCoverageType,
+            languageOrAdmissionRequirement);
 
         var student = await _context.Students
             .AsNoTracking()
@@ -38,10 +110,10 @@ public class ScholarshipApplicationService : IScholarshipApplicationService
             StudentId = student.Id,
             StudentName = student.Nombre,
             StudentCedula = student.Cedula,
-            ScholarshipName = request.ScholarshipName.Trim(),
-            InstitutionName = request.InstitutionName.Trim(),
-            CareerName = (request.CareerName ?? string.Empty).Trim(),
-            StudentComment = (request.StudentComment ?? string.Empty).Trim(),
+            ScholarshipName = scholarshipName,
+            InstitutionName = institutionName,
+            CareerName = careerName,
+            StudentComment = commentWithMetadata,
             NotificationEmail = ScholarshipTraceability.InstitutionalEmail,
             Status = ScholarshipApplicationStatuses.Pendiente,
             SubmittedAtUtc = DateTime.UtcNow,
@@ -270,6 +342,37 @@ public class ScholarshipApplicationService : IScholarshipApplicationService
             action,
             details,
             cancellationToken);
+    }
+
+    private static string BuildCommentWithMetadata(
+        string studentComment,
+        string scholarshipType,
+        string destinationCountry,
+        string foreignUniversity,
+        string internationalCoverageType,
+        string languageOrAdmissionRequirement)
+    {
+        if (!string.Equals(scholarshipType, "Internacional", StringComparison.OrdinalIgnoreCase))
+        {
+            return studentComment;
+        }
+
+        var metadata = string.Join("\n", new[]
+        {
+            "[DETALLE_BECA_INTERNACIONAL]",
+            $"Pais de destino: {destinationCountry}",
+            $"Universidad extranjera: {foreignUniversity}",
+            $"Cobertura: {internationalCoverageType}",
+            $"Requisitos idioma/admision: {languageOrAdmissionRequirement}",
+            "[/DETALLE_BECA_INTERNACIONAL]",
+        });
+
+        if (studentComment.Contains("[DETALLE_BECA_INTERNACIONAL]", StringComparison.OrdinalIgnoreCase))
+        {
+            return studentComment;
+        }
+
+        return string.Join("\n\n", new[] { studentComment, metadata }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 
     private static System.Linq.Expressions.Expression<Func<ScholarshipApplication, ScholarshipApplicationDto>> MapToDtoExpression()

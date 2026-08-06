@@ -9,11 +9,27 @@ public class CreateScholarshipApplicationRequest
     public string ScholarshipName { get; set; } = string.Empty;
 
     [Required]
+    [MaxLength(50)]
+    public string ScholarshipType { get; set; } = "Nacional";
+
+    [Required]
     [MaxLength(180)]
     public string InstitutionName { get; set; } = string.Empty;
 
     [MaxLength(180)]
     public string? CareerName { get; set; }
+
+    [MaxLength(120)]
+    public string? DestinationCountry { get; set; }
+
+    [MaxLength(180)]
+    public string? ForeignUniversity { get; set; }
+
+    [MaxLength(500)]
+    public string? InternationalCoverageType { get; set; }
+
+    [MaxLength(500)]
+    public string? LanguageOrAdmissionRequirement { get; set; }
 
     [MaxLength(2000)]
     public string? StudentComment { get; set; }
