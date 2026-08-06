@@ -160,52 +160,121 @@ const TAB_PENSUM = 'Mi Pensum'
 const TAB_BECAS  = 'Oportunidades y Becas'
 const STU_TABS   = [TAB_PERFIL, TAB_PENSUM, TAB_BECAS]
 const TRACEABILITY_EMAIL = 'sergiovargasdiaz316@gmail.com'
+const ANALYST_REVIEW_GENERAL = 'Revision General'
+const ANALYST_REVIEW_DOCUMENTS = 'Validacion Documental'
+const ANALYST_REVIEW_CRITERIA = 'Criterios Internacionales'
 
 const VERIFIED_INTERNATIONAL_AGREEMENTS = [
   {
-    id: 'es-ucm-sis-ciber',
+    id: 'es-ucm',
     country: 'Espana',
     foreignUniversity: 'Universidad Complutense de Madrid',
     institutionName: 'MESCYT/MINERD',
-    careerName: 'Ingenieria en Sistemas y Ciberseguridad',
+    programs: [
+      'Ingenieria en Sistemas',
+      'Administracion de Empresas',
+      'Derecho',
+      'Ciencias de la Salud',
+      'Maestria en Inteligencia Artificial',
+      'Energias Renovables',
+    ],
+    minAcademicIndex: 80,
+    languageRequirements: 'Dominio de espanol C1',
+    admissionRequirement: 'Carta de admision definitiva',
     coverageType: 'Matricula completa, estipendio mensual de manutencion, pasaje aereo y seguro medico integral',
     languageOrAdmissionRequirement: 'Indice minimo de 80, titulacion legalizada, dominio de espanol C1 y carta de admision definitiva',
+    coverageMatrix: 'Matricula: 100% | Manutencion: mensual | Pasaje: ida/vuelta | Seguro: internacional integral',
+    requiredDocuments: [
+      'Record de notas',
+      'Titulo legalizado',
+      'Certificacion de idioma',
+      'Carta de admision',
+      'Documento de identidad',
+    ],
     closingDate: '2026-11-15',
     sourceLabel: 'Convenio oficial MESCYT/MINERD',
     url: 'https://mescyt.gob.do',
   },
   {
-    id: 'es-ugr-sis-ciber',
+    id: 'es-ugr',
     country: 'Espana',
     foreignUniversity: 'Universidad de Granada',
     institutionName: 'MESCYT/MINERD',
-    careerName: 'Ingenieria en Sistemas y Ciberseguridad',
+    programs: [
+      'Ingenieria en Sistemas',
+      'Administracion de Empresas',
+      'Derecho',
+      'Ciencias de la Salud',
+      'Maestria en Inteligencia Artificial',
+      'Energias Renovables',
+    ],
+    minAcademicIndex: 80,
+    languageRequirements: 'Dominio de espanol C1',
+    admissionRequirement: 'Carta de admision definitiva',
     coverageType: 'Matricula completa, estipendio mensual de manutencion, pasaje aereo y seguro medico integral',
     languageOrAdmissionRequirement: 'Indice minimo de 80, titulacion legalizada, dominio de espanol C1 y carta de admision definitiva',
+    coverageMatrix: 'Matricula: 100% | Manutencion: mensual | Pasaje: ida/vuelta | Seguro: internacional integral',
+    requiredDocuments: [
+      'Record de notas',
+      'Titulo legalizado',
+      'Certificacion de idioma',
+      'Carta de admision',
+      'Documento de identidad',
+    ],
     closingDate: '2026-11-15',
     sourceLabel: 'Convenio oficial MESCYT/MINERD',
     url: 'https://mescyt.gob.do',
   },
   {
-    id: 'ca-utoronto-software',
+    id: 'ca-utoronto',
     country: 'Canada',
     foreignUniversity: 'University of Toronto',
     institutionName: 'MESCYT/MINERD',
-    careerName: 'Ingenieria de Software Avanzada',
+    programs: [
+      'Ingenieria de Software Avanzada',
+      'Ciencia de Datos',
+      'Gestion Ambiental',
+      'Finanzas Corporativas',
+    ],
+    minAcademicIndex: 88,
+    languageRequirements: 'IELTS 6.5 minimo o TOEFL equivalente',
+    admissionRequirement: 'Carta de aceptacion condicional o definitiva',
     coverageType: 'Matricula parcial o total, estipendio, pasaje y seguro medico',
     languageOrAdmissionRequirement: 'Indice minimo de 88, IELTS 6.5 minimo (o TOEFL) y carta de aceptacion condicional o definitiva',
+    coverageMatrix: 'Matricula: parcial/total | Manutencion: mensual | Pasaje: ida/vuelta | Seguro: internacional',
+    requiredDocuments: [
+      'Record de notas',
+      'Certificacion IELTS o TOEFL',
+      'Carta de aceptacion',
+      'Documento de identidad',
+    ],
     closingDate: '2026-12-05',
     sourceLabel: 'Convenio oficial MESCYT/MINERD',
     url: 'https://mescyt.gob.do',
   },
   {
-    id: 'ca-ubc-software',
+    id: 'ca-ubc',
     country: 'Canada',
     foreignUniversity: 'University of British Columbia',
     institutionName: 'MESCYT/MINERD',
-    careerName: 'Ingenieria de Software Avanzada',
+    programs: [
+      'Ingenieria de Software Avanzada',
+      'Ciencia de Datos',
+      'Gestion Ambiental',
+      'Finanzas Corporativas',
+    ],
+    minAcademicIndex: 88,
+    languageRequirements: 'IELTS 6.5 minimo o TOEFL equivalente',
+    admissionRequirement: 'Carta de aceptacion condicional o definitiva',
     coverageType: 'Matricula parcial o total, estipendio, pasaje y seguro medico',
     languageOrAdmissionRequirement: 'Indice minimo de 88, IELTS 6.5 minimo (o TOEFL) y carta de aceptacion condicional o definitiva',
+    coverageMatrix: 'Matricula: parcial/total | Manutencion: mensual | Pasaje: ida/vuelta | Seguro: internacional',
+    requiredDocuments: [
+      'Record de notas',
+      'Certificacion IELTS o TOEFL',
+      'Carta de aceptacion',
+      'Documento de identidad',
+    ],
     closingDate: '2026-12-05',
     sourceLabel: 'Convenio oficial MESCYT/MINERD',
     url: 'https://mescyt.gob.do',
@@ -215,9 +284,25 @@ const VERIFIED_INTERNATIONAL_AGREEMENTS = [
     country: 'Francia',
     foreignUniversity: 'Universite Paris-Saclay',
     institutionName: 'MESCYT/MINERD',
-    careerName: 'Programas de Posgrado y Maestrias',
+    programs: [
+      'Ingenieria Aeroespacial',
+      'Biotecnologia',
+      'Matematicas Aplicadas',
+      'Ciencias Economicas',
+    ],
+    minAcademicIndex: 82,
+    languageRequirements: 'DELF B2/C1 o Ingles segun programa',
+    admissionRequirement: 'Carta de admision definitiva',
     coverageType: 'Matricula completa, estipendio mensual de manutencion, pasaje aereo y seguro medico integral',
     languageOrAdmissionRequirement: 'Indice minimo de 82, certificacion de idioma (Francés DELF B2/C1 o Ingles segun el programa) y carta de admision definitiva',
+    coverageMatrix: 'Matricula: 100% | Manutencion: mensual | Pasaje: ida/vuelta | Seguro: internacional integral',
+    requiredDocuments: [
+      'Record de notas',
+      'Titulo legalizado',
+      'Certificacion DELF o equivalente',
+      'Carta de admision',
+      'Documento de identidad',
+    ],
     closingDate: '2026-11-30',
     sourceLabel: 'Convenio oficial MESCYT/MINERD',
     url: 'https://mescyt.gob.do',
@@ -227,9 +312,24 @@ const VERIFIED_INTERNATIONAL_AGREEMENTS = [
     country: 'Reino Unido',
     foreignUniversity: 'University of Edinburgh',
     institutionName: 'MESCYT/MINERD',
-    careerName: 'Programas de Maestria y Especializacion',
+    programs: [
+      'Negocios Internacionales',
+      'Salud Publica',
+      'Desarrollo Sostenible',
+      'Computacion Avanzada',
+    ],
+    minAcademicIndex: 85,
+    languageRequirements: 'IELTS 6.5 minimo',
+    admissionRequirement: 'Carta de admision condicional o definitiva',
     coverageType: 'Matricula completa o parcial, manutencion y seguro medico internacional',
     languageOrAdmissionRequirement: 'Indice academico minimo de 85, IELTS con puntuacion minima de 6.5 y carta de admision condicional o definitiva',
+    coverageMatrix: 'Matricula: completa/parcial | Manutencion: mensual | Seguro: internacional',
+    requiredDocuments: [
+      'Record de notas',
+      'Certificacion IELTS',
+      'Carta de admision',
+      'Documento de identidad',
+    ],
     closingDate: '2026-12-15',
     sourceLabel: 'Convenio oficial MESCYT/MINERD',
     url: 'https://mescyt.gob.do',
@@ -239,9 +339,23 @@ const VERIFIED_INTERNATIONAL_AGREEMENTS = [
     country: 'Mexico',
     foreignUniversity: 'Tecnologico de Monterrey - ITESM',
     institutionName: 'MESCYT/MINERD',
-    careerName: 'Programas de Movilidad y Posgrado',
+    programs: [
+      'Administracion de Negocios (MBA)',
+      'Ingenieria Industrial y de Sistemas',
+      'Innovacion Educativa',
+    ],
+    minAcademicIndex: 85,
+    languageRequirements: 'Idioma segun programa y proceso ITESM',
+    admissionRequirement: 'Titulacion de grado y proceso de admision aprobado',
     coverageType: 'Exoneracion de matricula institucional y apoyo de manutencion complementario',
     languageOrAdmissionRequirement: 'Indice academico minimo de 85, titulacion de grado y proceso de admision aprobado por el ITESM',
+    coverageMatrix: 'Matricula: exoneracion institucional | Manutencion: apoyo complementario',
+    requiredDocuments: [
+      'Record de notas',
+      'Titulo de grado',
+      'Carta de aceptacion ITESM',
+      'Documento de identidad',
+    ],
     closingDate: '2026-11-30',
     sourceLabel: 'Convenio oficial MESCYT/MINERD',
     url: 'https://mescyt.gob.do',
@@ -335,23 +449,29 @@ function buildScholarshipCards(carrera = '', ies = '') {
       color: 'border-amber-300 bg-amber-50',
       badge: 'bg-amber-100 text-amber-800',
     },
-    ...VERIFIED_INTERNATIONAL_AGREEMENTS.map((agreement, index) => ({
-      nombre: `Beca Internacional ${agreement.country} - ${agreement.foreignUniversity}`,
+    ...VERIFIED_INTERNATIONAL_AGREEMENTS.flatMap((agreement, agreementIndex) =>
+      agreement.programs.map((program, programIndex) => ({
+      nombre: `Beca Internacional ${agreement.country} - ${agreement.foreignUniversity} - ${program}`,
       modalidad: 'Internacional',
       entidad: agreement.institutionName,
       monto: agreement.coverageType,
       requisito: agreement.languageOrAdmissionRequirement,
       cierre: agreement.closingDate || '2026-12-05',
       url: agreement.url,
-      color: index % 2 === 0 ? 'border-fuchsia-300 bg-fuchsia-50' : 'border-sky-300 bg-sky-50',
-      badge: index % 2 === 0 ? 'bg-fuchsia-100 text-fuchsia-800' : 'bg-sky-100 text-sky-800',
+      color: (agreementIndex + programIndex) % 2 === 0 ? 'border-fuchsia-300 bg-fuchsia-50' : 'border-sky-300 bg-sky-50',
+      badge: (agreementIndex + programIndex) % 2 === 0 ? 'bg-fuchsia-100 text-fuchsia-800' : 'bg-sky-100 text-sky-800',
       destinoPais: agreement.country,
       universidadExtranjera: agreement.foreignUniversity,
       tipoCobertura: agreement.coverageType,
       requisitosIdiomaOAdmision: agreement.languageOrAdmissionRequirement,
-      carreraPrograma: agreement.careerName,
+      carreraPrograma: program,
       convenioOficial: agreement.sourceLabel,
-    })),
+      minAcademicIndex: agreement.minAcademicIndex,
+      languageRequirements: agreement.languageRequirements,
+      admissionRequirement: agreement.admissionRequirement,
+      coverageMatrix: agreement.coverageMatrix,
+      requiredDocuments: agreement.requiredDocuments,
+    }))),
   ]
 
   const institutionalMatches = []
@@ -734,7 +854,7 @@ function validateScholarshipRequestForm(form) {
     const hasOfficialAgreement = VERIFIED_INTERNATIONAL_AGREEMENTS.some(agreement =>
       agreement.country === destinationCountry
       && agreement.foreignUniversity === foreignUniversity
-      && agreement.careerName === careerName,
+      && agreement.programs.includes(careerName),
     )
 
     if (!hasOfficialAgreement) {
@@ -764,6 +884,66 @@ function getAutoScholarshipName(form) {
   return `Beca ${scholarshipType} ${institutionName || 'MESCYT/MINERD'} - ${careerName || 'Programa universitario'}`
 }
 
+function parseBlockMetadata(content, startTag, endTag) {
+  const text = (content || '').toString()
+  const start = text.indexOf(startTag)
+  const end = text.indexOf(endTag)
+  if (start < 0 || end < 0 || end <= start) return {}
+
+  const chunk = text.slice(start + startTag.length, end)
+  const lines = chunk.split('\n').map(line => line.trim()).filter(Boolean)
+  const result = {}
+  for (const line of lines) {
+    const separatorIndex = line.indexOf(':')
+    if (separatorIndex < 0) continue
+    const key = line.slice(0, separatorIndex).trim()
+    const value = line.slice(separatorIndex + 1).trim()
+    if (key) result[key] = value
+  }
+  return result
+}
+
+function getInternationalAgreementByValues(country, university, careerName) {
+  return VERIFIED_INTERNATIONAL_AGREEMENTS.find(agreement =>
+    agreement.country === (country || '').trim()
+    && agreement.foreignUniversity === (university || '').trim()
+    && agreement.programs.includes((careerName || '').trim()),
+  ) || null
+}
+
+function getInternationalDetailsFromApplication(application) {
+  const comment = (application?.studentComment || '').trim()
+  const metadata = parseBlockMetadata(comment, '[DETALLE_BECA_INTERNACIONAL]', '[/DETALLE_BECA_INTERNACIONAL]')
+  const country = metadata['Pais de destino'] || ''
+  const university = metadata['Universidad extranjera'] || ''
+  const coverage = metadata.Cobertura || ''
+  const languageOrAdmission = metadata['Requisitos idioma/admision'] || ''
+  const careerName = (application?.careerName || '').trim()
+  const agreement = getInternationalAgreementByValues(country, university, careerName)
+
+  return {
+    isInternational: Boolean(country || university) || ((application?.scholarshipName || '').includes('[Internacional]')),
+    country,
+    university,
+    coverage,
+    languageOrAdmission,
+    agreement,
+  }
+}
+
+function getDocumentReviewRows(application) {
+  const comment = (application?.studentComment || '').trim()
+  const metadata = parseBlockMetadata(comment, '[DOCUMENTOS_DIGITALIZADOS]', '[/DOCUMENTOS_DIGITALIZADOS]')
+
+  return [
+    { label: 'Record de notas', value: metadata['Record de notas'] || '' },
+    { label: 'Titulo legalizado', value: metadata['Titulo legalizado'] || '' },
+    { label: 'Certificacion de idioma', value: metadata['Certificacion de idioma'] || '' },
+    { label: 'Documento de identidad', value: metadata['Documento de identidad'] || '' },
+    { label: 'Carta de admision', value: metadata['Carta de admision'] || '' },
+  ]
+}
+
 function buildScholarshipCommentPayload(form) {
   const baseComment = (form?.studentComment || '').trim()
   const scholarshipType = (form?.scholarshipType || 'Nacional').trim()
@@ -781,7 +961,17 @@ function buildScholarshipCommentPayload(form) {
     '[/DETALLE_BECA_INTERNACIONAL]',
   ].join('\n')
 
-  return [baseComment, metadata].filter(Boolean).join('\n\n')
+  const documentsMetadata = [
+    '[DOCUMENTOS_DIGITALIZADOS]',
+    `Record de notas: ${(form?.academicRecordDocument || '').trim()}`,
+    `Titulo legalizado: ${(form?.legalizedDegreeDocument || '').trim()}`,
+    `Certificacion de idioma: ${(form?.languageCertificateDocument || '').trim()}`,
+    `Documento de identidad: ${(form?.identityDocument || '').trim()}`,
+    `Carta de admision: ${(form?.admissionLetterDocument || '').trim()}`,
+    '[/DOCUMENTOS_DIGITALIZADOS]',
+  ].join('\n')
+
+  return [baseComment, metadata, documentsMetadata].filter(Boolean).join('\n\n')
 }
 
 function getScholarshipStatusClasses(status) {
@@ -977,6 +1167,11 @@ export default function App() {
     foreignUniversity: '',
     internationalCoverageType: '',
     languageOrAdmissionRequirement: '',
+    academicRecordDocument: '',
+    legalizedDegreeDocument: '',
+    languageCertificateDocument: '',
+    identityDocument: '',
+    admissionLetterDocument: '',
     studentComment: '',
   }
   const [scholarshipForm, setScholarshipForm] = useState(emptyScholarshipForm)
@@ -988,6 +1183,7 @@ export default function App() {
   const [scholarshipLoading, setScholarshipLoading] = useState(false)
   const [scholarshipError, setScholarshipError] = useState('')
   const [scholarshipActionId, setScholarshipActionId] = useState('')
+  const [analystScholarshipTab, setAnalystScholarshipTab] = useState(ANALYST_REVIEW_GENERAL)
   const [scholarshipValidationAttempted, setScholarshipValidationAttempted] = useState(false)
   const [analysisDrafts, setAnalysisDrafts] = useState({})
   const [rejectionModal, setRejectionModal] = useState({ open: false, application: null, reason: '', error: '' })
@@ -1015,9 +1211,25 @@ export default function App() {
           if (!country && university) return item.foreignUniversity === university
           return item.country === country && item.foreignUniversity === university
         })
-        .map(item => item.careerName),
+        .flatMap(item => item.programs),
     )),
     [scholarshipForm.destinationCountry, scholarshipForm.foreignUniversity],
+  )
+  const analystScholarshipApplications = useMemo(() => {
+    const merged = [...pendingScholarshipApplications, ...economicScholarshipApplications]
+    const unique = new Map()
+    for (const app of merged) {
+      if (!app?.id) continue
+      if (!unique.has(app.id)) unique.set(app.id, app)
+    }
+
+    return Array.from(unique.values()).sort((a, b) => new Date(b.submittedAtUtc || 0) - new Date(a.submittedAtUtc || 0))
+  }, [pendingScholarshipApplications, economicScholarshipApplications])
+  const analystInternationalApplications = useMemo(
+    () => analystScholarshipApplications
+      .map(application => ({ application, details: getInternationalDetailsFromApplication(application) }))
+      .filter(row => row.details.isInternational),
+    [analystScholarshipApplications],
   )
 
   // ── Auditoría helper ────────────────────────────────────────────────────────
@@ -1440,6 +1652,7 @@ export default function App() {
     setScholarshipLoading(false)
     setScholarshipError('')
     setScholarshipActionId('')
+    setAnalystScholarshipTab(ANALYST_REVIEW_GENERAL)
     setScholarshipValidationAttempted(false)
     setAnalysisDrafts({})
     setRejectionModal({ open: false, application: null, reason: '', error: '' })
@@ -1463,6 +1676,11 @@ export default function App() {
           foreignUniversity: '',
           internationalCoverageType: '',
           languageOrAdmissionRequirement: '',
+          academicRecordDocument: '',
+          legalizedDegreeDocument: '',
+          languageCertificateDocument: '',
+          identityDocument: '',
+          admissionLetterDocument: '',
         }
       }
 
@@ -1474,6 +1692,11 @@ export default function App() {
           careerName: prev.scholarshipType === 'Internacional' ? '' : prev.careerName,
           internationalCoverageType: '',
           languageOrAdmissionRequirement: '',
+          academicRecordDocument: '',
+          legalizedDegreeDocument: '',
+          languageCertificateDocument: '',
+          identityDocument: '',
+          admissionLetterDocument: '',
         }
       }
 
@@ -1483,7 +1706,7 @@ export default function App() {
         const match = VERIFIED_INTERNATIONAL_AGREEMENTS.find(agreement =>
           agreement.country === (next.destinationCountry || '').trim()
           && agreement.foreignUniversity === (next.foreignUniversity || '').trim()
-          && agreement.careerName === (next.careerName || '').trim(),
+          && agreement.programs.includes((next.careerName || '').trim()),
         )
 
         if (match) {
@@ -1509,6 +1732,11 @@ export default function App() {
       foreignUniversity: isInternational ? (beca?.universidadExtranjera || '') : '',
       internationalCoverageType: isInternational ? (beca?.tipoCobertura || '') : '',
       languageOrAdmissionRequirement: isInternational ? (beca?.requisitosIdiomaOAdmision || '') : '',
+      academicRecordDocument: '',
+      legalizedDegreeDocument: '',
+      languageCertificateDocument: '',
+      identityDocument: '',
+      admissionLetterDocument: '',
       studentComment: '',
     })
     setScholarshipValidationAttempted(false)
@@ -2963,12 +3191,117 @@ export default function App() {
                   </span>
                 </div>
               </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {[ANALYST_REVIEW_GENERAL, ANALYST_REVIEW_DOCUMENTS, ANALYST_REVIEW_CRITERIA].map(tab => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setAnalystScholarshipTab(tab)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${analystScholarshipTab === tab ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {scholarshipError && (
               <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{scholarshipError}</p>
             )}
 
+            {analystScholarshipTab === ANALYST_REVIEW_DOCUMENTS && (
+              <div className={`${card} p-5 space-y-4`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-base font-semibold text-slate-800">Validación Documental</h3>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">Expedientes: {analystScholarshipApplications.length}</span>
+                </div>
+
+                {analystScholarshipApplications.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">
+                    No hay expedientes de becas para revisión documental.
+                  </div>
+                ) : (
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    {analystScholarshipApplications.map(application => {
+                      const documents = getDocumentReviewRows(application)
+                      return (
+                        <article key={`doc-${application.id}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <h4 className="text-base font-semibold text-slate-800">{application.scholarshipName}</h4>
+                              <p className="text-sm text-slate-500">{application.studentName} · {application.studentCedula}</p>
+                            </div>
+                            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getScholarshipStatusClasses(application.status)}`}>
+                              {application.status}
+                            </span>
+                          </div>
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <p className="mb-2 text-sm font-semibold text-slate-700">Documentos digitalizados</p>
+                            <div className="space-y-2 text-sm">
+                              {documents.map(doc => {
+                                const hasValue = Boolean((doc.value || '').trim())
+                                return (
+                                  <div key={`${application.id}-${doc.label}`} className="flex items-center justify-between gap-3">
+                                    <span className="text-slate-700">{doc.label}</span>
+                                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${hasValue ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                                      {hasValue ? 'Disponible' : 'Pendiente'}
+                                    </span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </article>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {analystScholarshipTab === ANALYST_REVIEW_CRITERIA && (
+              <div className={`${card} p-5 space-y-4`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-base font-semibold text-slate-800">Criterios Internacionales Detallados</h3>
+                  <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">Casos internacionales: {analystInternationalApplications.length}</span>
+                </div>
+
+                {analystInternationalApplications.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">
+                    No hay solicitudes internacionales en la bandeja actual.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {analystInternationalApplications.map(row => {
+                      const { application, details } = row
+                      const agreement = details.agreement
+                      return (
+                        <article key={`criteria-${application.id}`} className="rounded-2xl border border-blue-200 bg-blue-50/40 p-5 space-y-3">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <h4 className="text-base font-semibold text-slate-800">{application.scholarshipName}</h4>
+                              <p className="text-sm text-slate-600">{details.country || 'Pais no informado'} · {details.university || 'Universidad no informada'}</p>
+                            </div>
+                            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getScholarshipStatusClasses(application.status)}`}>{application.status}</span>
+                          </div>
+                          <div className="grid gap-3 text-sm text-slate-700 md:grid-cols-2">
+                            <p><span className="font-semibold text-slate-800">Carrera:</span> {application.careerName || 'No especificada'}</p>
+                            <p><span className="font-semibold text-slate-800">Indice minimo:</span> {agreement?.minAcademicIndex ?? 'No definido'}</p>
+                            <p><span className="font-semibold text-slate-800">Idioma:</span> {agreement?.languageRequirements || details.languageOrAdmission || 'No definido'}</p>
+                            <p><span className="font-semibold text-slate-800">Admision:</span> {agreement?.admissionRequirement || details.languageOrAdmission || 'No definida'}</p>
+                            <p className="md:col-span-2"><span className="font-semibold text-slate-800">Matriz de cobertura:</span> {agreement?.coverageMatrix || details.coverage || 'No definida'}</p>
+                            <p className="md:col-span-2"><span className="font-semibold text-slate-800">Documentacion normativa:</span> {(agreement?.requiredDocuments || []).join(', ') || 'No definida'}</p>
+                          </div>
+                        </article>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {analystScholarshipTab === ANALYST_REVIEW_GENERAL && (
+              <>
             <div className={`${card} p-5 space-y-4`}>
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-base font-semibold text-slate-800">Solicitudes Pendientes</h3>
@@ -3138,6 +3471,8 @@ export default function App() {
                 </div>
               )}
             </div>
+              </>
+            )}
           </section>
         )}
 
@@ -3460,6 +3795,61 @@ export default function App() {
                       {isScholarshipFieldInvalid(scholarshipValidation, scholarshipForm, scholarshipValidationAttempted, 'languageOrAdmissionRequirement') && (
                         <p className="text-xs text-rose-700">{scholarshipValidation.errors.languageOrAdmissionRequirement}</p>
                       )}
+                    </label>
+                    <label className="grid gap-1 lg:col-span-2">
+                      <span className="text-sm text-slate-600">Documento digital: Record de notas</span>
+                      <input
+                        type="text"
+                        name="academicRecordDocument"
+                        value={scholarshipForm.academicRecordDocument}
+                        onChange={handleScholarshipFormChange}
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                        placeholder="URL o referencia del documento"
+                      />
+                    </label>
+                    <label className="grid gap-1 lg:col-span-2">
+                      <span className="text-sm text-slate-600">Documento digital: Titulo legalizado</span>
+                      <input
+                        type="text"
+                        name="legalizedDegreeDocument"
+                        value={scholarshipForm.legalizedDegreeDocument}
+                        onChange={handleScholarshipFormChange}
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                        placeholder="URL o referencia del documento"
+                      />
+                    </label>
+                    <label className="grid gap-1 lg:col-span-2">
+                      <span className="text-sm text-slate-600">Documento digital: Certificacion de idioma</span>
+                      <input
+                        type="text"
+                        name="languageCertificateDocument"
+                        value={scholarshipForm.languageCertificateDocument}
+                        onChange={handleScholarshipFormChange}
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                        placeholder="URL o referencia del documento"
+                      />
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="text-sm text-slate-600">Documento digital: Identidad</span>
+                      <input
+                        type="text"
+                        name="identityDocument"
+                        value={scholarshipForm.identityDocument}
+                        onChange={handleScholarshipFormChange}
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                        placeholder="URL o referencia"
+                      />
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="text-sm text-slate-600">Documento digital: Carta de admision</span>
+                      <input
+                        type="text"
+                        name="admissionLetterDocument"
+                        value={scholarshipForm.admissionLetterDocument}
+                        onChange={handleScholarshipFormChange}
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
+                        placeholder="URL o referencia"
+                      />
                     </label>
                   </>
                 )}
