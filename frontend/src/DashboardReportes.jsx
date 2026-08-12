@@ -10,13 +10,12 @@ import {
   YAxis,
 } from 'recharts'
 
-const rawUrl = import.meta.env.VITE_API_URL || 'https://edumatrics-dr.up.railway.app'
-const cleanBaseUrl = rawUrl.replace(/[\[\]'\"]/g, '').replace(/\/$/, '')
+const cleanBaseUrl = 'https://edumetri-dr-production.up.railway.app'
 const normalizedApiUrl = cleanBaseUrl.trim()
 const fallbackApiOrigin = typeof window !== 'undefined' ? window.location.origin : ''
 const API_BASE = normalizedApiUrl
   ? (normalizedApiUrl.endsWith('/api') ? normalizedApiUrl : `${normalizedApiUrl}/api`)
-  : (fallbackApiOrigin ? `${fallbackApiOrigin}/api` : 'https://edumatrics-dr.up.railway.app/api')
+  : (fallbackApiOrigin ? `${fallbackApiOrigin}/api` : 'https://edumetri-dr-production.up.railway.app/api')
 const MODALIDAD_ACADEMICA = 'Modalidad Académica'
 const MODALIDAD_TECNICO = 'Modalidad Técnico Profesional'
 
