@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 
 const PRODUCTION_API_BASE = 'https://part-1-segundo-parcial-desarrollo-de-aplicativ-production.up.railway.app/api'
-const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim()
-const normalizedApiUrl = rawApiUrl.replace(/\/$/, '')
+const cleanBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/[\[\]'\"]/g, '').replace(/\/$/, '')
+const rawApiUrl = cleanBaseUrl.trim()
+const normalizedApiUrl = rawApiUrl
 const fallbackApiOrigin = typeof window !== 'undefined' ? window.location.origin : ''
 const API_BASE = normalizedApiUrl
   ? (normalizedApiUrl.endsWith('/api') ? normalizedApiUrl : `${normalizedApiUrl}/api`)
