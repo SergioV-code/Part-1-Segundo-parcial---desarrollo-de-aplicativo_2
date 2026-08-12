@@ -10,7 +10,8 @@ import {
   YAxis,
 } from 'recharts'
 
-const cleanBaseUrl = 'https://edumetri-dr-production.up.railway.app'
+const baseUrl = 'https://edumetri-dr-production.up.railway.app'
+const cleanBaseUrl = baseUrl.replace(/\/$/, '')
 const normalizedApiUrl = cleanBaseUrl.trim()
 const fallbackApiOrigin = typeof window !== 'undefined' ? window.location.origin : ''
 const API_BASE = normalizedApiUrl

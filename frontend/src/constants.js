@@ -1,5 +1,6 @@
 // ─── API ───────────────────────────────────────────────────────────────────────
-const cleanBaseUrl = 'https://edumetri-dr-production.up.railway.app'
+const baseUrl = 'https://edumetri-dr-production.up.railway.app'
+const cleanBaseUrl = baseUrl.replace(/\/$/, '')
 const normalizedApiUrl = cleanBaseUrl.trim()
 export const API_BASE = normalizedApiUrl.endsWith('/api')
   ? normalizedApiUrl

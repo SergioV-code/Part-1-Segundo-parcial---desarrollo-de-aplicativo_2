@@ -1,4 +1,4 @@
-const DEFAULT_BACKEND_API_BASE = 'https://edumatrics-dr.up.railway.app'
+const DEFAULT_BACKEND_API_BASE = 'https://edumetri-dr-production.up.railway.app'
 
 function buildTargetUrl(base, pathSuffix, search) {
   const rawBase = (base || DEFAULT_BACKEND_API_BASE).replace(/[\[\]'\"]/g, '').replace(/\/$/, '')
