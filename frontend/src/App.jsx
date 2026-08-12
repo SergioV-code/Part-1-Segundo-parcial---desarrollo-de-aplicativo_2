@@ -5,7 +5,7 @@ import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveCo
 import * as XLSX from 'xlsx'
 
 // ─── API BASE ──────────────────────────────────────────────────────────────────
-const rawUrl = import.meta.env.VITE_API_URL || 'https://resilient-transformation-production.up.railway.app'
+const rawUrl = import.meta.env.VITE_API_URL || 'https://edumatrics-dr.up.railway.app'
 const cleanBaseUrl = rawUrl.replace(/[\[\]'\"]/g, '').replace(/\/$/, '')
 const normalizedApiUrl = cleanBaseUrl.trim()
 

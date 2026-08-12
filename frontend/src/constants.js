@@ -1,5 +1,5 @@
 // ─── API ───────────────────────────────────────────────────────────────────────
-const rawUrl = import.meta.env.VITE_API_URL || 'https://resilient-transformation-production.up.railway.app'
+const rawUrl = import.meta.env.VITE_API_URL || 'https://edumatrics-dr.up.railway.app'
 const cleanBaseUrl = rawUrl.replace(/[\[\]'\"]/g, '').replace(/\/$/, '')
 const normalizedApiUrl = cleanBaseUrl.trim()
 export const API_BASE = normalizedApiUrl.endsWith('/api')
