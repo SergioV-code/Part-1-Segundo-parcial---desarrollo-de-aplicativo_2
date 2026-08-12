@@ -5,14 +5,15 @@ import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveCo
 import * as XLSX from 'xlsx'
 
 // ─── API BASE ──────────────────────────────────────────────────────────────────
-const PRODUCTION_API_BASE = 'https://part-1-segundo-parcial-desarrollo-de-aplicativ-production.up.railway.app/api'
-const cleanBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/[\[\]'\"]/g, '').replace(/\/$/, '')
-const rawApiUrl = cleanBaseUrl.trim()
-const normalizedApiUrl = rawApiUrl
+const rawUrl = import.meta.env.VITE_API_URL || 'https://resilient-transformation-production.up.railway.app'
+const cleanBaseUrl = rawUrl.replace(/[\[\]'\"]/g, '').replace(/\/$/, '')
+const normalizedApiUrl = cleanBaseUrl.trim()
 
-const configuredApiBase = normalizedApiUrl
-  ? normalizedApiUrl.endsWith('/api') ? normalizedApiUrl : `${normalizedApiUrl}/api`
-  : ''
+const configuredApiBase = normalizedApiUrl.endsWith('/api')
+  ? normalizedApiUrl
+  : `${normalizedApiUrl}/api`
+
+const PRODUCTION_API_BASE = configuredApiBase
 
 const API_BASE_CANDIDATES = Array.from(new Set([
   configuredApiBase,

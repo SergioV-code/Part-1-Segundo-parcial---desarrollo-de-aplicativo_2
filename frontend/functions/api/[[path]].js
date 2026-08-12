@@ -1,7 +1,8 @@
-const DEFAULT_BACKEND_API_BASE = 'https://part-1-segundo-parcial-desarrollo-de-aplicativ-production.up.railway.app/api'
+const DEFAULT_BACKEND_API_BASE = 'https://resilient-transformation-production.up.railway.app'
 
 function buildTargetUrl(base, pathSuffix, search) {
-  const normalizedBase = (base || DEFAULT_BACKEND_API_BASE).replace(/\/$/, '')
+  const rawBase = (base || DEFAULT_BACKEND_API_BASE).replace(/[\[\]'\"]/g, '').replace(/\/$/, '')
+  const normalizedBase = rawBase || DEFAULT_BACKEND_API_BASE
   const normalizedSuffix = pathSuffix ? `/${pathSuffix}` : ''
   return `${normalizedBase}${normalizedSuffix}${search || ''}`
 }

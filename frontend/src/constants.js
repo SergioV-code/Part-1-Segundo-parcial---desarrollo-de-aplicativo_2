@@ -1,11 +1,10 @@
 // ─── API ───────────────────────────────────────────────────────────────────────
-const PRODUCTION_API_BASE = 'https://part-1-segundo-parcial-desarrollo-de-aplicativ-production.up.railway.app/api'
-const cleanBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/[\[\]'\"]/g, '').replace(/\/$/, '')
-const rawApiUrl = cleanBaseUrl.trim()
-const normalizedApiUrl = rawApiUrl
-export const API_BASE = normalizedApiUrl
-  ? normalizedApiUrl.endsWith('/api') ? normalizedApiUrl : `${normalizedApiUrl}/api`
-  : PRODUCTION_API_BASE
+const rawUrl = import.meta.env.VITE_API_URL || 'https://resilient-transformation-production.up.railway.app'
+const cleanBaseUrl = rawUrl.replace(/[\[\]'\"]/g, '').replace(/\/$/, '')
+const normalizedApiUrl = cleanBaseUrl.trim()
+export const API_BASE = normalizedApiUrl.endsWith('/api')
+  ? normalizedApiUrl
+  : `${normalizedApiUrl}/api`
 
 // ─── MODALIDADES ──────────────────────────────────────────────────────────────
 export const MOD_ACADEMICA = 'Modalidad Academica'
