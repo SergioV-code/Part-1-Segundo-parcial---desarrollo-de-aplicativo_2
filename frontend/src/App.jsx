@@ -3,6 +3,7 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import * as XLSX from 'xlsx'
+import AcademicIndexSimulator from './components/AcademicIndexSimulator'
 
 // ─── API BASE ──────────────────────────────────────────────────────────────────
 const cleanBaseUrl = 'https://edumetri-dr-production.up.railway.app'
@@ -3984,6 +3985,8 @@ export default function App() {
                 />
               </div>
             </div>
+
+            <AcademicIndexSimulator />
           </section>
         )}
 
